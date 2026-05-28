@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NBA 3-2-1 Lottery Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f8f9fa; --surface: #fff; --surface2: #f3f4f6;
+  --border: #e2e5e9; --text: #1a1a2e; --text2: #5a6070; --text-muted: #8892a6;
+  --accent: #3b82f6; --accent-dim: rgba(59,130,246,0.08); --accent-hover: #2563eb;
+  --gold: #f0b637; --cyan: #0ea5e9; --green: #16a34a; --red: #dc2626; --orange: #f59e0b; --purple: #8b5cf6;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; line-height:1.5; padding-bottom:3rem; }
+::-webkit-scrollbar{height:6px;width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:3px}
+
+/* Header */
+.header { padding:1.75rem 2rem 0.5rem; max-width:1200px; margin:0 auto; }
+.header h1 { font-weight:800; font-size:1.7rem; letter-spacing:-0.02em; }
+.header h1 .tag { font-family:'JetBrains Mono',monospace; font-size:0.6rem; color:var(--accent); background:var(--accent-dim); padding:0.2em 0.6em; border-radius:4px; letter-spacing:0.04em; margin-left:0.5rem; vertical-align:middle; }
+.header p { color:var(--text2); font-size:0.92rem; margin-top:0.25rem; max-width:780px; }
+
+/* Sections */
+.section { max-width:1200px; margin:1.5rem auto 0; padding:0 2rem; }
+.section h2 { font-weight:700; font-size:1.05rem; color:var(--text); margin-bottom:0.65rem; display:flex; align-items:baseline; gap:0.6rem; }
+.section h2 .sub { font-weight:400; font-size:0.78rem; color:var(--text-muted); }
+.section h2 .badge { font-family:'JetBrains Mono',monospace; font-size:0.62rem; color:var(--accent); background:var(--accent-dim); padding:0.15em 0.5em; border-radius:4px; letter-spacing:0.04em; }
+
+/* Controls */
+.controls { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:1.1rem 1.25rem; display:flex; align-items:flex-end; gap:1.25rem; flex-wrap:wrap; }
+.ctrl { display:flex; flex-direction:column; gap:0.3rem; }
+.ctrl label { font-size:0.65rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); font-weight:600; }
+.ctrl select, .ctrl input[type=text], .ctrl input[type=number] { font-family:inherit; font-size:0.85rem; padding:0.45em 0.6em; border:1px solid var(--border); border-radius:6px; background:var(--surface); color:var(--text); }
+.ctrl input[type=range] { width:160px; }
+.ctrl .range-row { display:flex; align-items:center; gap:0.5rem; }
+.ctrl .range-val { font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--text); min-width:1.5em; }
+.btn { font-family:inherit; font-size:0.8rem; font-weight:700; padding:0.55em 1.1em; background:var(--accent); color:#fff; border:1px solid var(--accent); border-radius:6px; cursor:pointer; transition:background .15s, border-color .15s; letter-spacing:0.01em; }
+.btn:hover { background:var(--accent-hover); border-color:var(--accent-hover); }
+.btn.secondary { background:var(--surface); color:var(--text); border-color:var(--border); }
+.btn.secondary:hover { border-color:var(--accent); color:var(--accent); }
+
+/* Standings */
+.standings-wrap { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+.conf-table { background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+.conf-table h3 { padding:0.7rem 0.9rem; background:var(--surface2); font-size:0.85rem; font-weight:700; border-bottom:1px solid var(--border); }
+.conf-table table { width:100%; border-collapse:collapse; font-size:0.78rem; }
+.conf-table td { padding:0.32rem 0.6rem; border-bottom:1px solid var(--border); }
+.conf-table tr:last-child td { border-bottom:none; }
+.conf-table td.seed { font-family:'JetBrains Mono',monospace; font-size:0.7rem; color:var(--text-muted); width:30px; text-align:center; }
+.conf-table td.team { font-weight:600; }
+.conf-table td.team .abbr { font-family:'JetBrains Mono',monospace; color:var(--text-muted); font-weight:500; font-size:0.7rem; margin-left:0.3rem; }
+.conf-table td.rec { text-align:right; font-family:'JetBrains Mono',monospace; color:var(--text2); font-size:0.74rem; }
+.conf-table tr.playoff td { color:var(--text); }
+.conf-table tr.playin td.seed { color:var(--orange); font-weight:600; }
+.conf-table tr.lottery td { color:var(--text2); }
+.conf-table tr.lottery td.team { color:var(--text); }
+.conf-table tr.relegated td.seed::after { content:" ⚠"; color:var(--red); }
+.conf-table tr.relegated td.team .abbr::after { content:" · relegated"; color:var(--red); font-size:0.6rem; letter-spacing:0.05em; text-transform:uppercase; margin-left:0.3rem; }
+
+/* Lottery odds */
+.odds-table { background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+.odds-table table { width:100%; border-collapse:collapse; font-size:0.78rem; }
+.odds-table thead th { background:var(--surface2); font-family:'JetBrains Mono',monospace; font-size:0.6rem; font-weight:500; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); padding:0.5rem 0.6rem; text-align:left; border-bottom:1px solid var(--border); }
+.odds-table thead th:not(:first-child):not(:nth-child(2)) { text-align:right; }
+.odds-table tbody td { padding:0.35rem 0.6rem; border-bottom:1px solid var(--border); }
+.odds-table tbody tr:last-child td { border-bottom:none; }
+.odds-table td.t-team { font-weight:600; }
+.odds-table td.t-team .abbr { font-family:'JetBrains Mono',monospace; color:var(--text-muted); font-weight:500; font-size:0.72rem; margin-left:0.3rem; }
+.odds-table td.t-balls, .odds-table td.t-odds { text-align:right; font-family:'JetBrains Mono',monospace; }
+.odds-table td.t-cat { font-size:0.7rem; color:var(--text-muted); }
+.odds-table td.t-cat.relegated { color:var(--red); font-weight:600; }
+.odds-table td.t-cat.normal { color:var(--accent); }
+.odds-table td.t-cat.playin { color:var(--orange); }
+.odds-table td.t-cat.playin78 { color:var(--purple); }
+.odds-table tr.is-floor td.t-team::after { content:" · #12 floor"; font-size:0.6rem; color:var(--red); text-transform:uppercase; letter-spacing:0.04em; margin-left:0.3rem; }
+
+/* Draft board */
+.board { background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+.board table { width:100%; border-collapse:collapse; font-size:0.83rem; }
+.board thead th { background:var(--surface2); font-family:'JetBrains Mono',monospace; font-size:0.6rem; font-weight:500; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); padding:0.55rem 0.7rem; text-align:left; border-bottom:1px solid var(--border); }
+.board tbody td { padding:0.5rem 0.7rem; border-bottom:1px solid var(--border); vertical-align:middle; }
+.board tbody tr:last-child td { border-bottom:none; }
+.board tbody tr.lottery { background:rgba(59,130,246,0.03); }
+.board tbody tr.lottery-top4 { background:rgba(240,182,55,0.07); }
+.board td.pn { font-family:'JetBrains Mono',monospace; font-weight:700; width:55px; text-align:center; font-size:0.95rem; color:var(--text); }
+.board tr.lottery-top4 td.pn { color:var(--gold); }
+.board tr.lottery td.pn { color:var(--accent); }
+.board td.pn .pn-tag { display:block; font-family:'JetBrains Mono',monospace; font-size:0.55rem; color:var(--text-muted); font-weight:500; text-transform:uppercase; letter-spacing:0.05em; margin-top:0.1rem; }
+.board td.orig { color:var(--text2); font-size:0.78rem; }
+.board td.owner { font-weight:700; }
+.board td.owner .abbr { font-family:'JetBrains Mono',monospace; color:var(--text-muted); font-weight:500; font-size:0.72rem; margin-left:0.3rem; }
+.board td.owner .via { font-size:0.66rem; color:var(--accent); font-weight:500; margin-left:0.4rem; padding:0.05em 0.4em; background:var(--accent-dim); border-radius:3px; letter-spacing:0.03em; }
+.board td.notes { font-size:0.7rem; color:var(--text-muted); font-style:italic; }
+.board td.notes .restrict { color:var(--red); font-style:normal; font-weight:600; }
+
+/* Trades editor */
+.trades-area { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:1rem 1.25rem; }
+.trades-area p { font-size:0.78rem; color:var(--text2); margin-bottom:0.5rem; }
+.trades-area textarea { width:100%; min-height:120px; padding:0.6rem 0.75rem; border:1px solid var(--border); border-radius:6px; font-family:'JetBrains Mono',monospace; font-size:0.74rem; resize:vertical; line-height:1.5; }
+.trades-area .help { margin-top:0.5rem; font-size:0.7rem; color:var(--text-muted); }
+.trades-area .help code { background:var(--surface2); padding:0.05em 0.4em; border-radius:3px; font-size:0.92em; }
+
+/* History inputs */
+.history-area { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:1rem 1.25rem; }
+.history-area .row { display:flex; gap:1.5rem; flex-wrap:wrap; margin-top:0.5rem; }
+.history-area .row > div { display:flex; flex-direction:column; gap:0.3rem; }
+.history-area input { padding:0.45em 0.6em; border:1px solid var(--border); border-radius:6px; font-family:inherit; font-size:0.8rem; width:280px; }
+.history-area p { font-size:0.78rem; color:var(--text2); }
+.history-area label { font-size:0.65rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); font-weight:600; }
+
+/* Footer / notes */
+.notes { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:1rem 1.25rem; font-size:0.78rem; color:var(--text2); line-height:1.6; }
+.notes h3 { font-size:0.85rem; color:var(--text); margin-bottom:0.4rem; }
+.notes ul { margin:0.3rem 0 0 1.2rem; }
+.notes li { margin-bottom:0.2rem; }
+
+/* Empty / placeholder states */
+.empty { padding:1.5rem; text-align:center; color:var(--text-muted); font-size:0.85rem; }
+
+@media (max-width: 880px) {
+  .standings-wrap { grid-template-columns:1fr; }
+  .controls { flex-direction:column; align-items:stretch; }
+  .ctrl input[type=range] { width:100%; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>NBA 3-2-1 Lottery Simulator <span class="tag">2028+ RULES</span></h1>
+  <p>Models the new lottery system that takes effect for the 2028 NBA Draft. Uses 2025-26 final standings as the baseline and projects future seasons with year-over-year noise. All mechanics — 16-team lottery, 3-2-1 ball allocation, draft relegation, pick floors, own-pick restrictions, and traded-pick handling — are simulated.</p>
+</div>
+
+<!-- ============================================== Controls ============================================== -->
+<div class="section">
+  <h2>Controls</h2>
+  <div class="controls">
+    <div class="ctrl">
+      <label>Draft Year</label>
+      <select id="ctlYear">
+        <option value="2028">2028 (Y+2)</option>
+        <option value="2029" selected>2029 (Y+3)</option>
+        <option value="2030">2030 (Y+4)</option>
+        <option value="2031">2031 (Y+5)</option>
+      </select>
+    </div>
+    <div class="ctrl">
+      <label>Year-over-Year Noise (±games)</label>
+      <div class="range-row">
+        <input type="range" id="ctlNoise" min="0" max="20" step="1" value="8">
+        <span class="range-val" id="ctlNoiseVal">8</span>
+      </div>
+    </div>
+    <div class="ctrl">
+      <label>Mean Reversion (toward .500)</label>
+      <div class="range-row">
+        <input type="range" id="ctlReversion" min="0" max="50" step="5" value="15">
+        <span class="range-val" id="ctlReversionVal">15%</span>
+      </div>
+    </div>
+    <div class="ctrl">
+      <label>Random Seed (leave blank for random)</label>
+      <input type="text" id="ctlSeed" placeholder="e.g. wemby2028" style="width:180px">
+    </div>
+    <button class="btn" id="btnRun">▶ Run Simulation</button>
+    <button class="btn secondary" id="btnReroll" title="Re-roll the noise + lottery only">↻ Re-roll</button>
+  </div>
+</div>
+
+<!-- ============================================== Traded Picks ============================================== -->
+<div class="section">
+  <h2>Traded Picks <span class="sub">— picks that will go to a different team than the team that earned them</span></h2>
+  <div class="trades-area">
+    <p>Enter one trade per line: <code>ORIGINATING TEAM → OWNER [protection]</code></p>
+    <textarea id="ctlTrades">BKN → HOU
+PHI → BKN top-8
+LAC → OKC
+MEM → WAS top-2
+UTA → MIN
+NOP → WAS unprotected
+ATL → SAS
+MIL → POR top-4</textarea>
+    <div class="help">
+      Use 3-letter abbrevs (BOS, OKC, etc.). Protection formats: <code>top-N</code> (keeps pick if it lands top-N) or <code>unprotected</code>. Omit for unprotected. <strong>Note:</strong> Per the new rules, no team may attach top-12 through top-15 protections on newly traded picks — those bands are rejected.
+    </div>
+  </div>
+</div>
+
+<!-- ============================================== History (for pick restrictions) ============================================== -->
+<div class="section">
+  <h2>Pick-Restriction History <span class="sub">— for the rule that bars a team's own pick from being #1 twice or top-5 three times in a row</span></h2>
+  <div class="history-area">
+    <p>If you want the restriction logic to fire, list teams whose own picks landed in restricted positions in recent drafts (only relevant for 2029+ sims). Leave blank to skip.</p>
+    <div class="row">
+      <div>
+        <label>Team(s) with #1 pick in PRIOR draft</label>
+        <input type="text" id="ctlPrev1" placeholder="e.g. UTA">
+      </div>
+      <div>
+        <label>Teams with top-5 picks in two PRIOR drafts</label>
+        <input type="text" id="ctlPrev5" placeholder="e.g. UTA,WAS,CHA">
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================== Projected Standings ============================================== -->
+<div class="section">
+  <h2>Projected Standings <span class="sub" id="standingsYear">— 2029</span></h2>
+  <div class="standings-wrap">
+    <div class="conf-table" id="eastTable"><h3>Eastern Conference</h3><table><tbody></tbody></table></div>
+    <div class="conf-table" id="westTable"><h3>Western Conference</h3><table><tbody></tbody></table></div>
+  </div>
+</div>
+
+<!-- ============================================== Lottery Ball Allocation ============================================== -->
+<div class="section">
+  <h2>Lottery Ball Allocation <span class="badge">16 TEAMS</span></h2>
+  <div class="odds-table">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th><th>Team</th><th>Category</th><th>Balls</th><th>#1 odds</th>
+        </tr>
+      </thead>
+      <tbody id="oddsBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ============================================== Draft Board ============================================== -->
+<div class="section">
+  <h2>Draft Board <span class="sub" id="boardYear">— 2029</span></h2>
+  <div class="board">
+    <table>
+      <thead>
+        <tr>
+          <th>Pick</th><th>Original Team</th><th>Owner</th><th>Notes</th>
+        </tr>
+      </thead>
+      <tbody id="boardBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ============================================== How It Works ============================================== -->
+<div class="section">
+  <h2>How the new system works</h2>
+  <div class="notes">
+    <h3>Ball allocation (16 lottery teams)</h3>
+    <ul>
+      <li><strong>10 non-playoff, non-play-in teams</strong> — 3 balls each, except the 3 worst overall records lose 1 ball ("draft relegation")</li>
+      <li><strong>3 worst overall records</strong> (relegated) — 2 balls each, with a guaranteed pick floor of #12</li>
+      <li><strong>#9 and #10 play-in seeds</strong> (both conferences) — 2 balls each</li>
+      <li><strong>Losers of the #7 vs #8 play-in games</strong> (both conferences) — 1 ball each. These teams may still make playoffs as the 8-seed</li>
+    </ul>
+    <h3>Floors</h3>
+    <ul>
+      <li>Draft-relegated teams cannot pick lower than <strong>#12</strong></li>
+      <li>All other lottery teams cannot pick lower than <strong>#16</strong></li>
+    </ul>
+    <h3>Own-pick restrictions</h3>
+    <ul>
+      <li>A team's own pick cannot be <strong>#1 in two consecutive drafts</strong></li>
+      <li>A team's own pick cannot be <strong>top-5 in three consecutive drafts</strong></li>
+      <li>Restrictions follow the originating team — even if the pick has been traded</li>
+    </ul>
+    <h3>Pick protections</h3>
+    <ul>
+      <li>Newly traded picks cannot use protections in the <strong>top-12 through top-15</strong> band (must be unprotected, more aggressive, or less aggressive)</li>
+    </ul>
+    <h3>Modeling choices in this simulator</h3>
+    <ul>
+      <li>Records project from 2025-26 baseline using normal-distributed noise (std-dev scales with √yearsAhead) plus a configurable mean-reversion factor toward .500</li>
+      <li>Play-in 7v8 game: lower-record team is treated as the loser (use the play-in seeding from regular season). For ties, random</li>
+      <li>Lottery draws use weighted sampling without replacement (mathematically equivalent to the ball-combination system)</li>
+      <li>Floors are enforced by post-draw swaps — if a relegated team draws into 13-16, they swap with the highest-positioned non-relegated team within 1-12</li>
+      <li>Pick-restriction history must be entered manually (single-year sims don't track multi-year state)</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════════════════
+// Data — 2025-26 Final NBA Regular-Season Standings
+// ════════════════════════════════════════════════════════════════════════
+const BASELINE = [
+  // Eastern Conference
+  { abbr:'DET', name:'Detroit Pistons',         conf:'E', w:60, l:22 },
+  { abbr:'BOS', name:'Boston Celtics',          conf:'E', w:56, l:26 },
+  { abbr:'NYK', name:'New York Knicks',         conf:'E', w:53, l:29 },
+  { abbr:'CLE', name:'Cleveland Cavaliers',     conf:'E', w:52, l:30 },
+  { abbr:'TOR', name:'Toronto Raptors',         conf:'E', w:46, l:36 },
+  { abbr:'ATL', name:'Atlanta Hawks',           conf:'E', w:46, l:36 },
+  { abbr:'PHI', name:'Philadelphia 76ers',      conf:'E', w:45, l:37 },
+  { abbr:'ORL', name:'Orlando Magic',           conf:'E', w:45, l:37 },
+  { abbr:'CHA', name:'Charlotte Hornets',       conf:'E', w:44, l:38 },
+  { abbr:'MIA', name:'Miami Heat',              conf:'E', w:43, l:39 },
+  { abbr:'MIL', name:'Milwaukee Bucks',         conf:'E', w:32, l:50 },
+  { abbr:'CHI', name:'Chicago Bulls',           conf:'E', w:31, l:51 },
+  { abbr:'BKN', name:'Brooklyn Nets',           conf:'E', w:20, l:62 },
+  { abbr:'IND', name:'Indiana Pacers',          conf:'E', w:19, l:63 },
+  { abbr:'WAS', name:'Washington Wizards',      conf:'E', w:17, l:65 },
+  // Western Conference
+  { abbr:'OKC', name:'Oklahoma City Thunder',   conf:'W', w:64, l:18 },
+  { abbr:'SAS', name:'San Antonio Spurs',       conf:'W', w:62, l:20 },
+  { abbr:'DEN', name:'Denver Nuggets',          conf:'W', w:54, l:28 },
+  { abbr:'LAL', name:'Los Angeles Lakers',      conf:'W', w:53, l:29 },
+  { abbr:'HOU', name:'Houston Rockets',         conf:'W', w:52, l:30 },
+  { abbr:'MIN', name:'Minnesota Timberwolves',  conf:'W', w:49, l:33 },
+  { abbr:'PHX', name:'Phoenix Suns',            conf:'W', w:45, l:37 },
+  { abbr:'POR', name:'Portland Trail Blazers',  conf:'W', w:42, l:40 },
+  { abbr:'LAC', name:'LA Clippers',             conf:'W', w:42, l:40 },
+  { abbr:'GSW', name:'Golden State Warriors',   conf:'W', w:37, l:45 },
+  { abbr:'NOP', name:'New Orleans Pelicans',    conf:'W', w:26, l:56 },
+  { abbr:'DAL', name:'Dallas Mavericks',        conf:'W', w:26, l:56 },
+  { abbr:'MEM', name:'Memphis Grizzlies',       conf:'W', w:25, l:57 },
+  { abbr:'SAC', name:'Sacramento Kings',        conf:'W', w:22, l:60 },
+  { abbr:'UTA', name:'Utah Jazz',               conf:'W', w:22, l:60 },
+];
+
+// Map abbreviation → full team object (for fast lookup)
+const TEAM_MAP = Object.fromEntries(BASELINE.map(t => [t.abbr, t]));
+
+// ════════════════════════════════════════════════════════════════════════
+// Seeded RNG (Mulberry32) — deterministic when seeded
+// ════════════════════════════════════════════════════════════════════════
+function hashSeed(str) {
+  let h = 1779033703 ^ str.length;
+  for (let i = 0; i < str.length; i++) {
+    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+    h = h << 13 | h >>> 19;
+  }
+  return (h ^ h >>> 16) >>> 0;
+}
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = a;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+// Box-Muller for normal-distributed random numbers
+function normalSample(rng) {
+  let u1 = 0, u2 = 0;
+  while (u1 === 0) u1 = rng();
+  while (u2 === 0) u2 = rng();
+  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Year-to-year record projection
+// ════════════════════════════════════════════════════════════════════════
+function projectRecords(rng, yearsAhead, noiseGames, reversionPct) {
+  // For each team: noise scaled by sqrt(yearsAhead). Reversion is yearly compounded.
+  const reversion = reversionPct / 100;
+  const yearlyReversion = 1 - reversion;
+  // Effective reversion after N years
+  const totalReversion = 1 - Math.pow(yearlyReversion, yearsAhead);
+  // Total noise variance grows with years (approx random walk + reversion)
+  const sigma = noiseGames * Math.sqrt(yearsAhead);
+
+  return BASELINE.map(t => {
+    const baseWins = t.w;
+    const revertedWins = baseWins + (41 - baseWins) * totalReversion;
+    let projected = revertedWins + normalSample(rng) * sigma;
+    projected = Math.max(10, Math.min(72, Math.round(projected)));
+    return {
+      ...t,
+      pw: projected,
+      pl: 82 - projected,
+      ppct: projected / 82,
+    };
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Standings & seeding
+// ════════════════════════════════════════════════════════════════════════
+function buildStandings(teams, rng) {
+  // Per-conference sort, with random tiebreaker
+  const tieJitter = () => (rng() - 0.5) * 0.0001;
+  const teamsWithJitter = teams.map(t => ({ ...t, sortKey: t.pw + tieJitter() }));
+  const east = teamsWithJitter.filter(t => t.conf === 'E').sort((a,b) => b.sortKey - a.sortKey);
+  const west = teamsWithJitter.filter(t => t.conf === 'W').sort((a,b) => b.sortKey - a.sortKey);
+  // Assign seeds 1-15
+  east.forEach((t,i) => t.seed = i + 1);
+  west.forEach((t,i) => t.seed = i + 1);
+  return { east, west };
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Identify lottery participants and ball counts
+// ════════════════════════════════════════════════════════════════════════
+function buildLotteryField(standings) {
+  // All non-top-6 teams enter the lottery field, with categorization:
+  //   - Non-play-in (seeds 11-15 per conf): 3 balls (10 teams)
+  //   - Play-in seeds 9 and 10: 2 balls (4 teams)
+  //   - Play-in seeds 7 vs 8 game LOSER: 1 ball (2 teams) — lower regular-season seed in current sim
+  // Then identify 3 worst overall records ("relegated") — subtract 1 ball, set floor #12
+  //
+  // For 7v8 loser: in absence of actual play-in sim, we assume the lower-record team
+  // (8-seed by record) is the 7v8 loser. They may still make playoffs as 8-seed.
+  const all = [...standings.east, ...standings.west];
+  const field = [];
+  for (const conf of [standings.east, standings.west]) {
+    // Seeds 11-15: non-playoff, non-play-in → 3 balls
+    for (let i = 10; i < 15; i++) {
+      field.push({ ...conf[i], balls: 3, category: 'normal' });
+    }
+    // Seeds 9 and 10: play-in seeds → 2 balls
+    field.push({ ...conf[8], balls: 2, category: 'playin9' });
+    field.push({ ...conf[9], balls: 2, category: 'playin10' });
+    // Seed 8 = the assumed "7v8 loser" (lower-record team in the 7v8 matchup) → 1 ball
+    field.push({ ...conf[7], balls: 1, category: 'playin78' });
+  }
+  // Identify 3 worst overall records — these are "draft relegated"
+  // They lose 1 ball but get a #12 floor
+  const sortedByRecord = [...field].sort((a,b) => a.pw - b.pw);
+  const relegated = new Set(sortedByRecord.slice(0, 3).map(t => t.abbr));
+  for (const t of field) {
+    if (relegated.has(t.abbr)) {
+      t.balls -= 1;
+      t.relegated = true;
+    } else {
+      t.relegated = false;
+    }
+  }
+  return field;
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Weighted sampling without replacement
+// ════════════════════════════════════════════════════════════════════════
+function weightedDraw(pool, weights, rng) {
+  // Returns the index drawn
+  const total = weights.reduce((s,w) => s + w, 0);
+  let r = rng() * total;
+  for (let i = 0; i < pool.length; i++) {
+    r -= weights[i];
+    if (r <= 0) return i;
+  }
+  return pool.length - 1;
+}
+
+function drawLottery(field, rng) {
+  // Draw all 16 picks via weighted sampling without replacement
+  const remaining = field.map(t => ({ ...t }));
+  const result = [];
+  while (remaining.length) {
+    const idx = weightedDraw(remaining, remaining.map(t => t.balls), rng);
+    result.push(remaining[idx]);
+    remaining.splice(idx, 1);
+  }
+  return result;
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Apply pick floors
+// ════════════════════════════════════════════════════════════════════════
+function applyFloors(draws) {
+  // Relegated teams must be at positions 1-12 (cannot fall to 13-16).
+  // If a relegated team is at 13-16, swap with the highest non-relegated team at ≤12.
+  const result = draws.map((t,i) => ({ ...t, _pos: i }));
+  for (let i = 12; i < 16; i++) {
+    if (result[i].relegated) {
+      // Find highest position (largest index, but ≤11) of a non-relegated team
+      for (let j = 11; j >= 0; j--) {
+        if (!result[j].relegated) {
+          // swap
+          const tmp = result[i];
+          result[i] = result[j];
+          result[j] = tmp;
+          break;
+        }
+      }
+    }
+  }
+  return result;
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Apply own-pick restrictions (history-based)
+// ════════════════════════════════════════════════════════════════════════
+function applyRestrictions(picks, prev1List, prev5List) {
+  // picks = full draft order (array of pick objects). Apply:
+  //   - If a team's own pick is at #1 and that team had #1 last year → slide down to #2
+  //   - If a team's own pick is in top-5 and that team had top-5 in BOTH prior years → slide out of top-5
+  //
+  // "Own pick" here = the originating team. We use `originalAbbr` to track this.
+  // Restrictions follow the ORIGINATING team (per CBA), not the current owner.
+  const result = [...picks];
+  const restrictions = [];
+
+  // Rule 1: #1 cannot belong to the same originating team for 2 consecutive drafts
+  if (prev1List.length && result[0]) {
+    if (prev1List.includes(result[0].originalAbbr)) {
+      // slide down — swap with #2
+      const team = result[0].originalAbbr;
+      const target = result[1];
+      [result[0], result[1]] = [result[1], result[0]];
+      // re-mark positions
+      result[0].pos = 1;
+      result[1].pos = 2;
+      restrictions.push({ pick: 1, team, reason: `had #1 in prior draft` });
+    }
+  }
+
+  // Rule 2: top-5 cannot belong to the same originating team for 3 consecutive drafts
+  // prev5List = teams that had top-5 picks in BOTH of the last two drafts
+  if (prev5List.length) {
+    for (let i = 0; i < 5 && i < result.length; i++) {
+      if (prev5List.includes(result[i].originalAbbr)) {
+        // slide down to position 6
+        const team = result[i].originalAbbr;
+        if (result[5]) {
+          [result[i], result[5]] = [result[5], result[i]];
+          restrictions.push({ pick: i + 1, team, reason: `had top-5 in two prior drafts` });
+        }
+      }
+    }
+  }
+
+  // Re-set position numbers
+  result.forEach((p, i) => p.pos = i + 1);
+  return { picks: result, restrictions };
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Parse traded-picks textarea
+// ════════════════════════════════════════════════════════════════════════
+function parseTrades(text) {
+  // Format per line: "ORIG → OWNER [protection]"
+  // Examples:
+  //   BKN → HOU
+  //   PHI → BKN top-8
+  //   POR → CHI top-14
+  const trades = [];
+  const errors = [];
+  const lines = text.split('\n').map(s => s.trim()).filter(Boolean);
+  for (const line of lines) {
+    const m = line.match(/^([A-Z]{2,3})\s*(?:→|->|to)\s*([A-Z]{2,3})(?:\s+(.+))?$/i);
+    if (!m) { errors.push(`Could not parse: "${line}"`); continue; }
+    const orig = m[1].toUpperCase();
+    const owner = m[2].toUpperCase();
+    if (!TEAM_MAP[orig]) { errors.push(`Unknown team: ${orig}`); continue; }
+    if (!TEAM_MAP[owner]) { errors.push(`Unknown team: ${owner}`); continue; }
+    let prot = null;
+    if (m[3]) {
+      const p = m[3].toLowerCase().trim();
+      if (p === 'unprotected' || p === 'no') prot = null;
+      else {
+        const pm = p.match(/^top[\s-]?(\d+)$/);
+        if (pm) {
+          const n = parseInt(pm[1], 10);
+          if (n >= 12 && n <= 15) {
+            errors.push(`Rejecting "${line}" — top-12 through top-15 protections are not allowed under the new CBA`);
+            continue;
+          }
+          prot = n;
+        } else {
+          errors.push(`Unrecognized protection: "${m[3]}"`);
+          continue;
+        }
+      }
+    }
+    trades.push({ orig, owner, protection: prot });
+  }
+  return { trades, errors };
+}
+
+// Apply a trade to a pick: determine actual owner given the pick's position
+function resolveOwner(originalAbbr, pickNum, trades) {
+  // Find the trade for this originating team
+  const trade = trades.find(t => t.orig === originalAbbr);
+  if (!trade) return { ownerAbbr: originalAbbr, traded: false };
+  // Check protection — if pick is within protection range, originator keeps it
+  if (trade.protection !== null && pickNum <= trade.protection) {
+    return { ownerAbbr: originalAbbr, traded: false, kept: true, protection: trade.protection };
+  }
+  return { ownerAbbr: trade.owner, traded: true, protection: trade.protection };
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Main run
+// ════════════════════════════════════════════════════════════════════════
+const STATE = {
+  year: 2029,
+  noise: 8,
+  reversion: 15,
+  seed: '',
+  lastSeedNum: null,
+};
+
+function getSeedNum() {
+  const txt = document.getElementById('ctlSeed').value.trim();
+  if (txt) return hashSeed(txt);
+  // No seed provided — generate random one and remember it
+  return Math.floor(Math.random() * 2 ** 32);
+}
+
+function runSim() {
+  STATE.year = parseInt(document.getElementById('ctlYear').value, 10);
+  STATE.noise = parseInt(document.getElementById('ctlNoise').value, 10);
+  STATE.reversion = parseInt(document.getElementById('ctlReversion').value, 10);
+  STATE.seed = document.getElementById('ctlSeed').value.trim();
+  STATE.lastSeedNum = getSeedNum();
+
+  const rng = mulberry32(STATE.lastSeedNum);
+  const yearsAhead = STATE.year - 2026; // 2025-26 season -> 2026 draft baseline; 2028 draft = Y+2
+  const projected = projectRecords(rng, yearsAhead, STATE.noise, STATE.reversion);
+  const standings = buildStandings(projected, rng);
+  const field = buildLotteryField(standings);
+
+  // Run lottery
+  const draws = drawLottery(field, rng);
+  const withFloors = applyFloors(draws);
+
+  // Picks 1-16 = lottery teams (in draw order, after floor swap)
+  // Picks 17-30 = remaining playoff teams by reverse regular-season record
+  const lotterySet = new Set(withFloors.map(t => t.abbr));
+  const playoffTeams = [...standings.east, ...standings.west].filter(t => !lotterySet.has(t.abbr));
+  playoffTeams.sort((a,b) => a.pw - b.pw); // worst record first → pick 17
+
+  // Compose full draft order with originating-team metadata
+  const fullPicks = [
+    ...withFloors.map(t => ({ originalAbbr: t.abbr, isLottery: true, balls: t.balls, category: t.category, relegated: t.relegated })),
+    ...playoffTeams.map(t => ({ originalAbbr: t.abbr, isLottery: false })),
+  ].map((p,i) => ({ ...p, pos: i + 1 }));
+
+  // Apply restrictions
+  const prev1Raw = document.getElementById('ctlPrev1').value.trim();
+  const prev5Raw = document.getElementById('ctlPrev5').value.trim();
+  const prev1List = prev1Raw ? prev1Raw.split(/[,\s]+/).map(s => s.toUpperCase()).filter(s => TEAM_MAP[s]) : [];
+  const prev5List = prev5Raw ? prev5Raw.split(/[,\s]+/).map(s => s.toUpperCase()).filter(s => TEAM_MAP[s]) : [];
+  const { picks: pickedWithRestrictions, restrictions } = applyRestrictions(fullPicks, prev1List, prev5List);
+
+  // Parse trades
+  const { trades, errors: tradeErrors } = parseTrades(document.getElementById('ctlTrades').value);
+
+  // Resolve owners for each pick
+  const finalBoard = pickedWithRestrictions.map((p, i) => {
+    const pickNum = i + 1;
+    const { ownerAbbr, traded, kept, protection } = resolveOwner(p.originalAbbr, pickNum, trades);
+    const restrict = restrictions.find(r => r.pick === pickNum);
+    return { ...p, pickNum, ownerAbbr, traded, kept, protection, restrict };
+  });
+
+  // Render
+  renderStandings(standings, field);
+  renderOdds(field);
+  renderBoard(finalBoard, tradeErrors);
+  document.getElementById('standingsYear').textContent = `— ${STATE.year}`;
+  document.getElementById('boardYear').textContent = `— ${STATE.year}`;
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Rendering
+// ════════════════════════════════════════════════════════════════════════
+function fmtRec(t) {
+  return `${t.pw}-${t.pl}`;
+}
+
+function renderStandings(standings, field) {
+  const fieldAbbrs = new Set(field.map(t => t.abbr));
+  const relegated = new Set(field.filter(t => t.relegated).map(t => t.abbr));
+  const playin78 = new Set(field.filter(t => t.category === 'playin78').map(t => t.abbr));
+  const playin9 = new Set(field.filter(t => t.category === 'playin9' || t.category === 'playin10').map(t => t.abbr));
+
+  function rowsFor(list) {
+    return list.map((t,i) => {
+      let cls = 'lottery';
+      if (i < 6) cls = 'playoff';
+      else if (i < 8) cls = 'playoff'; // 7-8 still go to playoffs in current system, but 8 is play-in-78 too
+      else if (i < 10) cls = 'playin'; // 9-10 are play-in losers
+      if (relegated.has(t.abbr)) cls += ' relegated';
+      const lotteryMark = fieldAbbrs.has(t.abbr) ? '' : '';
+      return `<tr class="${cls}">
+        <td class="seed">${t.seed}</td>
+        <td class="team">${t.name} <span class="abbr">${t.abbr}</span></td>
+        <td class="rec">${fmtRec(t)}</td>
+      </tr>`;
+    }).join('');
+  }
+  document.querySelector('#eastTable tbody').innerHTML = rowsFor(standings.east);
+  document.querySelector('#westTable tbody').innerHTML = rowsFor(standings.west);
+}
+
+function renderOdds(field) {
+  // Compute #1 odds for each team (approximation: balls / total)
+  // This is the *exact* odds under weighted-without-replacement for the first draw.
+  const total = field.reduce((s,t) => s + t.balls, 0);
+  // Sort by ball count desc, then by record asc (worst first within same ball count)
+  const sorted = [...field].sort((a,b) => {
+    if (b.balls !== a.balls) return b.balls - a.balls;
+    return a.pw - b.pw;
+  });
+  const html = sorted.map((t,i) => {
+    let catTag, catCls;
+    if (t.relegated)                           { catTag = 'Non-PI (relegated)'; catCls = 'relegated'; }
+    else if (t.category === 'normal')          { catTag = 'Non-playoff';        catCls = 'normal'; }
+    else if (t.category === 'playin9')         { catTag = 'Play-in 9';          catCls = 'playin'; }
+    else if (t.category === 'playin10')        { catTag = 'Play-in 10';         catCls = 'playin'; }
+    else if (t.category === 'playin78')        { catTag = '7v8 loser';          catCls = 'playin78'; }
+    else                                       { catTag = '—';                  catCls = ''; }
+    const odds = (t.balls / total * 100).toFixed(1) + '%';
+    const floorCls = t.relegated ? 'is-floor' : '';
+    return `<tr class="${floorCls}">
+      <td>${i + 1}</td>
+      <td class="t-team">${t.name} <span class="abbr">${t.abbr}</span></td>
+      <td class="t-cat ${catCls}">${catTag}</td>
+      <td class="t-balls">${t.balls}</td>
+      <td class="t-odds">${odds}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('oddsBody').innerHTML = html + 
+    `<tr><td colspan="3" style="text-align:right;font-style:italic;color:var(--text-muted);font-size:0.7rem;padding-top:0.5rem">Total balls</td><td class="t-balls" style="font-weight:700">${total}</td><td></td></tr>`;
+}
+
+function renderBoard(board, tradeErrors) {
+  const html = board.map(p => {
+    const orig = TEAM_MAP[p.originalAbbr];
+    const owner = TEAM_MAP[p.ownerAbbr];
+    const traded = p.traded;
+    let cls = '';
+    if (p.pickNum <= 4) cls = 'lottery-top4';
+    else if (p.isLottery) cls = 'lottery';
+    const ptag = p.isLottery ? '<span class="pn-tag">Lottery</span>' : '';
+    let notes = '';
+    if (p.restrict) {
+      notes = `<span class="restrict">Restricted</span> · ${p.restrict.reason} — slid down`;
+    } else if (p.traded) {
+      notes = `Traded to ${p.ownerAbbr}` + (p.protection ? ` (was top-${p.protection} prot)` : '');
+    } else if (p.kept) {
+      notes = `Pick ${p.pickNum} ≤ top-${p.protection} → ${p.originalAbbr} keeps it`;
+    } else if (p.isLottery) {
+      notes = `${p.balls} ball${p.balls===1?'':'s'} in lottery`;
+    }
+    const ownerCell = traded
+      ? `${owner.name} <span class="abbr">${p.ownerAbbr}</span><span class="via">via ${p.originalAbbr}</span>`
+      : `${orig.name} <span class="abbr">${p.originalAbbr}</span>`;
+    return `<tr class="${cls}">
+      <td class="pn">${p.pickNum}${ptag}</td>
+      <td class="orig">${orig.name} <span style="opacity:0.6">${p.originalAbbr}</span></td>
+      <td class="owner">${ownerCell}</td>
+      <td class="notes">${notes}</td>
+    </tr>`;
+  }).join('');
+  let errorBlock = '';
+  if (tradeErrors && tradeErrors.length) {
+    errorBlock = `<tr><td colspan="4" style="background:rgba(220,38,38,0.05);color:var(--red);font-size:0.75rem;padding:0.5rem 0.7rem;border-top:1px solid var(--border)">⚠ Trade parser warnings: ${tradeErrors.join(' · ')}</td></tr>`;
+  }
+  document.getElementById('boardBody').innerHTML = html + errorBlock;
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Wire up controls
+// ════════════════════════════════════════════════════════════════════════
+document.getElementById('ctlNoise').addEventListener('input', e => {
+  document.getElementById('ctlNoiseVal').textContent = e.target.value;
+});
+document.getElementById('ctlReversion').addEventListener('input', e => {
+  document.getElementById('ctlReversionVal').textContent = e.target.value + '%';
+});
+document.getElementById('btnRun').addEventListener('click', runSim);
+document.getElementById('btnReroll').addEventListener('click', () => {
+  // Clear seed to force a new random one
+  document.getElementById('ctlSeed').value = '';
+  runSim();
+});
+
+// Initial run
+runSim();
+</script>
+
+</body>
+</html>
