@@ -43,13 +43,11 @@ body { font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif; backgr
 .intro-card p { font-size:0.85rem; color:var(--text2); max-width:520px; margin:0 auto; }
 
 .year-block { margin-top:2rem; position:relative; }
-.year-block.locked { opacity:0.35; pointer-events:none; }
 .year-header { display:flex; align-items:center; gap:0.75rem; padding:0.5rem 0 0.75rem; border-bottom:2px solid var(--border); margin-bottom:1rem; }
 .year-header h2 { font-size:1.4rem; font-weight:800; letter-spacing:-0.02em; }
 .year-header .step-tag { font-family:'JetBrains Mono',monospace; font-size:0.62rem; color:var(--text-muted); background:var(--surface2); padding:0.2em 0.6em; border-radius:4px; letter-spacing:0.06em; }
 
 .phase { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:1.1rem 1.25rem; margin-top:0.8rem; }
-.phase.locked { display:none; }
 .phase-head { display:flex; align-items:baseline; gap:0.6rem; margin-bottom:0.85rem; flex-wrap:wrap; }
 .phase-head .ph-num { font-family:'JetBrains Mono',monospace; font-size:0.62rem; color:#fff; background:var(--accent); padding:0.25em 0.55em; border-radius:4px; letter-spacing:0.06em; font-weight:700; }
 .phase-head h3 { font-size:0.98rem; font-weight:700; }
@@ -155,15 +153,11 @@ body { font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif; backgr
 
   <div class="setup">
     <div class="ctrl">
-      <label>Year-over-Year Noise (±wins)</label>
+      <label>Year-over-Year Win Variance</label>
       <div class="range-row">
         <input type="range" id="ctlNoise" min="0" max="14" step="1" value="6">
         <span class="range-val" id="ctlNoiseVal">6</span>
       </div>
-    </div>
-    <div class="ctrl">
-      <label>Random Seed</label>
-      <input type="text" id="ctlSeed" placeholder="(blank = random)" style="width:200px">
     </div>
     <button class="btn big" id="btnStart">▶ Start Simulation</button>
     <button class="btn secondary" id="btnReset" style="display:none">↻ New Simulation</button>
@@ -187,23 +181,9 @@ body { font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif; backgr
     </div>
   </details>
 
-  <details class="trades-area" open>
-    <summary>Traded picks (optional) — supports year-specific trades</summary>
-    <div class="body">
-      <p>One trade per line: <code>[YYYY:] ORIG → OWNER [protection]</code>. With a year prefix, the trade only fires for that draft; without one, it applies to all 3 sim years.</p>
-      <textarea id="ctlTrades">2027: UTA → MEM        # Jaren Jackson Jr. trade (simplified — actually swap with CLE/MIN)
-2027: LAL → MEM top-4  # also from JJJ trade
-2028: BKN → HOU        # placeholder example
-2029: PHI → BKN top-8  # placeholder example</textarea>
-      <div class="help">
-        Use 3-letter abbrevs. Protection: <code>top-N</code> or <code>unprotected</code>. New CBA rejects top-12 through top-15 protections. <code>#</code> starts a comment. <strong>Restriction follows the originating team</strong> — if UTA's pick is restricted out of top-5, MEM (the owner) gets the slid-down pick, not UTA.
-      </div>
-    </div>
-  </details>
-
   <div class="intro-card" id="intro">
     <h3>Ready to simulate</h3>
-    <p>Set a seed for reproducibility (or leave blank for random), then click <strong>Start Simulation</strong>. The 2027 standings will reveal first.</p>
+    <p>Click <strong>Start Simulation</strong> to project 2027, 2028, and 2029 drafts. The 2027 standings will reveal first; each subsequent phase unlocks when you advance.</p>
   </div>
 
   <div id="yearBlocks"></div>
@@ -539,12 +519,34 @@ function categoryLabel(cat, relegated) {
   return { text: '—', cls: '' };
 }
 
-function renderYearBlock(yearData, idx, totalYears) {
-  const { year, standings, field, finalBoard, fires, historySnapshot } = yearData;
-  const isLast = idx === totalYears - 1;
-  const nextYear = isLast ? null : YEARS_TO_SIM[idx + 1];
+function renderYearShell(yearData, idx, totalYears) {
+  const { year, historySnapshot } = yearData;
+  // History banner (carry-over restrictions)
+  let historyBanner = '';
+  const parts = [];
+  if (historySnapshot.no1_lastYear) {
+    parts.push(`<strong>${TEAM_MAP[historySnapshot.no1_lastYear].name}</strong> can't pick #1 (had it in ${historySnapshot.no1_year})`);
+  }
+  const top5Restricted = historySnapshot.top5_2yrAgo.filter(t => historySnapshot.top5_1yrAgo.includes(t));
+  if (top5Restricted.length) {
+    parts.push(`<strong>${top5Restricted.map(t => TEAM_MAP[t].name).join(', ')}</strong> blocked from top-5 (top-5 in both ${historySnapshot.top5_2yrAgo_year} &amp; ${historySnapshot.top5_1yrAgo_year})`);
+  }
+  if (parts.length) {
+    historyBanner = `<div class="history-banner"><strong>Carry-over restrictions:</strong> ${parts.join(' · ')}</div>`;
+  }
+  return `
+    <div class="year-block" id="year-block-${year}" data-year-idx="${idx}">
+      <div class="year-header">
+        <h2>${year} Draft</h2>
+        <span class="step-tag">YEAR ${idx + 1} OF ${totalYears}</span>
+      </div>
+      ${historyBanner}
+    </div>
+  `;
+}
 
-  // Standings rendering
+function renderPhase1(yearData, idx) {
+  const { year, standings, field } = yearData;
   const standingRow = (t, i) => {
     let cls = 'is-lottery';
     let tagHtml = '';
@@ -560,8 +562,32 @@ function renderYearBlock(yearData, idx, totalYears) {
   };
   const eastHtml = standings.east.map(standingRow).join('');
   const westHtml = standings.west.map(standingRow).join('');
+  return `
+    <div class="phase phase-1" data-phase="1">
+      <div class="phase-head">
+        <span class="ph-num">PHASE 1</span>
+        <h3>Final Standings</h3>
+        <span class="sub">— projected ${year - 1}-${(year).toString().slice(2)} regular-season finish</span>
+      </div>
+      <div class="standings-grid">
+        <div class="conf-card"><h4>Eastern Conference</h4>${eastHtml}</div>
+        <div class="conf-card"><h4>Western Conference</h4>${westHtml}</div>
+      </div>
+      <div class="legend">
+        <span><span class="dot" style="background:var(--green)"></span> Playoff (top 6)</span>
+        <span><span class="dot" style="background:var(--orange)"></span> Play-in (7-10)</span>
+        <span><span class="dot" style="background:var(--surface2);border:1px solid var(--border)"></span> Lottery (11-15)</span>
+        <span><span class="dot" style="background:var(--red)"></span> Relegated (3 worst overall)</span>
+      </div>
+      <div class="phase-actions">
+        <button class="btn" data-action="advance">→ Pre-Lottery Odds</button>
+      </div>
+    </div>
+  `;
+}
 
-  // Lottery odds
+function renderPhase2(yearData, idx) {
+  const { field } = yearData;
   const totalBalls = field.reduce((s,t) => s + t.balls, 0);
   const fieldSorted = [...field].sort((a,b) => {
     if (b.balls !== a.balls) return b.balls - a.balls;
@@ -579,8 +605,39 @@ function renderYearBlock(yearData, idx, totalYears) {
       <td class="r">${odds}</td>
     </tr>`;
   }).join('');
+  return `
+    <div class="phase phase-2" data-phase="2">
+      <div class="phase-head">
+        <span class="ph-num">PHASE 2</span>
+        <h3>Pre-Lottery Odds</h3>
+        <span class="sub">— 16 teams, 3-2-1 ball allocation</span>
+      </div>
+      <div class="odds-table">
+        <table>
+          <thead><tr>
+            <th class="r">#</th><th>Team</th><th>Category</th><th class="r">Balls</th><th class="r">#1 Odds</th>
+          </tr></thead>
+          <tbody>${oddsRows}
+            <tr class="footer-row">
+              <td colspan="3" style="text-align:right">Total lottery balls</td>
+              <td class="r" style="font-weight:700">${totalBalls}</td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="phase-actions">
+        <button class="btn" data-action="advance">▶ Run the Lottery</button>
+      </div>
+    </div>
+  `;
+}
 
-  // Draft board
+function renderPhase3(yearData, idx, totalYears) {
+  const { year, finalBoard, fires } = yearData;
+  const isLast = idx === totalYears - 1;
+  const nextYear = isLast ? null : YEARS_TO_SIM[idx + 1];
+
   const boardRows = finalBoard.map(p => {
     const orig = TEAM_MAP[p.originalAbbr];
     const own  = TEAM_MAP[p.ownerAbbr];
@@ -610,105 +667,86 @@ function renderYearBlock(yearData, idx, totalYears) {
     </tr>`;
   }).join('');
 
-  // History banner (any year with carry-over restrictions, including 2027 if prior history given)
-  let historyBanner = '';
-  const parts = [];
-  if (historySnapshot.no1_lastYear) {
-    parts.push(`<strong>${TEAM_MAP[historySnapshot.no1_lastYear].name}</strong> can't pick #1 (had it in ${historySnapshot.no1_year})`);
-  }
-  const top5Restricted = historySnapshot.top5_2yrAgo.filter(t => historySnapshot.top5_1yrAgo.includes(t));
-  if (top5Restricted.length) {
-    parts.push(`<strong>${top5Restricted.map(t => TEAM_MAP[t].name).join(', ')}</strong> blocked from top-5 (top-5 in both ${historySnapshot.top5_2yrAgo_year} &amp; ${historySnapshot.top5_1yrAgo_year})`);
-  }
-  if (parts.length) {
-    historyBanner = `<div class="history-banner"><strong>Carry-over restrictions:</strong> ${parts.join(' · ')}</div>`;
-  }
-
   const nextBtn = isLast 
     ? `<span style="color:var(--text-muted);font-size:0.78rem;font-style:italic">— end of simulation —</span>` 
-    : `<button class="btn" data-action="advance-year" data-idx="${idx}">→ Advance to ${nextYear} Standings</button>`;
+    : `<button class="btn" data-action="advance">→ Advance to ${nextYear} Standings</button>`;
 
   return `
-    <div class="year-block ${idx > 0 ? 'locked' : ''}" id="year-block-${year}" data-year-idx="${idx}">
-      <div class="year-header">
-        <h2>${year} Draft</h2>
-        <span class="step-tag">YEAR ${idx + 1} OF ${totalYears}</span>
+    <div class="phase phase-3" data-phase="3">
+      <div class="phase-head">
+        <span class="ph-num">PHASE 3</span>
+        <h3>Lottery Results &amp; Draft Board</h3>
+        <span class="sub">— ${year} NBA Draft order</span>
       </div>
-      ${historyBanner}
-      
-      <div class="phase phase-1" data-phase="1">
-        <div class="phase-head">
-          <span class="ph-num">PHASE 1</span>
-          <h3>Final Standings</h3>
-          <span class="sub">— projected ${year - 1}-${(year).toString().slice(2)} regular-season finish</span>
-        </div>
-        <div class="standings-grid">
-          <div class="conf-card"><h4>Eastern Conference</h4>${eastHtml}</div>
-          <div class="conf-card"><h4>Western Conference</h4>${westHtml}</div>
-        </div>
-        <div class="legend">
-          <span><span class="dot" style="background:var(--green)"></span> Playoff (top 6)</span>
-          <span><span class="dot" style="background:var(--orange)"></span> Play-in (7-10)</span>
-          <span><span class="dot" style="background:var(--surface2);border:1px solid var(--border)"></span> Lottery (11-15)</span>
-          <span><span class="dot" style="background:var(--red)"></span> Relegated (3 worst overall)</span>
-        </div>
-        <div class="phase-actions">
-          <button class="btn" data-action="reveal" data-year-idx="${idx}" data-next-phase="2">→ Pre-Lottery Odds</button>
-        </div>
+      ${fires.length ? `<div class="history-banner fires"><strong>Restrictions fired:</strong> ${fires.map(f => `${TEAM_MAP[f.team].name} slid from #${f.originalPick} → #${f.finalPick} (${f.reason})`).join(' · ')}</div>` : ''}
+      <div class="board">
+        <table>
+          <thead><tr>
+            <th>Pick</th><th>Original Team</th><th>Owner</th><th>Notes</th>
+          </tr></thead>
+          <tbody>${boardRows}</tbody>
+        </table>
       </div>
-
-      <div class="phase phase-2 locked" data-phase="2">
-        <div class="phase-head">
-          <span class="ph-num">PHASE 2</span>
-          <h3>Pre-Lottery Odds</h3>
-          <span class="sub">— 16 teams, 3-2-1 ball allocation</span>
-        </div>
-        <div class="odds-table">
-          <table>
-            <thead><tr>
-              <th class="r">#</th><th>Team</th><th>Category</th><th class="r">Balls</th><th class="r">#1 Odds</th>
-            </tr></thead>
-            <tbody>${oddsRows}
-              <tr class="footer-row">
-                <td colspan="3" style="text-align:right">Total lottery balls</td>
-                <td class="r" style="font-weight:700">${totalBalls}</td>
-                <td></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <div class="phase-actions">
-          <button class="btn" data-action="reveal" data-year-idx="${idx}" data-next-phase="3">▶ Run the Lottery</button>
-        </div>
-      </div>
-
-      <div class="phase phase-3 locked" data-phase="3">
-        <div class="phase-head">
-          <span class="ph-num">PHASE 3</span>
-          <h3>Lottery Results &amp; Draft Board</h3>
-          <span class="sub">— ${year} NBA Draft order</span>
-        </div>
-        ${fires.length ? `<div class="history-banner fires"><strong>Restrictions fired:</strong> ${fires.map(f => `${TEAM_MAP[f.team].name} slid from #${f.originalPick} → #${f.finalPick} (${f.reason})`).join(' · ')}</div>` : ''}
-        <div class="board">
-          <table>
-            <thead><tr>
-              <th>Pick</th><th>Original Team</th><th>Owner</th><th>Notes</th>
-            </tr></thead>
-            <tbody>${boardRows}</tbody>
-          </table>
-        </div>
-        <div class="phase-actions">
-          ${nextBtn}
-        </div>
+      <div class="phase-actions">
+        ${nextBtn}
       </div>
     </div>
   `;
 }
 
+function appendNextPhase() {
+  if (!STATE.next) return;
+  const { yearIdx, phase } = STATE.next;
+  const yearData = STATE.simResult.years[yearIdx];
+  const totalYears = STATE.simResult.years.length;
+
+  // If starting a new year (phase 1), append the year shell first
+  if (phase === 1) {
+    const shellHtml = renderYearShell(yearData, yearIdx, totalYears);
+    document.getElementById('yearBlocks').insertAdjacentHTML('beforeend', shellHtml);
+  }
+
+  // Append the phase card
+  const yearBlock = document.getElementById(`year-block-${yearData.year}`);
+  let phaseHtml;
+  if (phase === 1)      phaseHtml = renderPhase1(yearData, yearIdx);
+  else if (phase === 2) phaseHtml = renderPhase2(yearData, yearIdx);
+  else if (phase === 3) phaseHtml = renderPhase3(yearData, yearIdx, totalYears);
+  yearBlock.insertAdjacentHTML('beforeend', phaseHtml);
+
+  // Hide all previously rendered phase-actions (keep only the newest active)
+  const allActions = document.querySelectorAll('.phase-actions');
+  for (let i = 0; i < allActions.length - 1; i++) {
+    allActions[i].style.display = 'none';
+  }
+
+  // Update next pointer
+  if (phase < 3) {
+    STATE.next = { yearIdx, phase: phase + 1 };
+  } else if (yearIdx < totalYears - 1) {
+    STATE.next = { yearIdx: yearIdx + 1, phase: 1 };
+  } else {
+    STATE.next = null;
+  }
+
+  // Scroll the newly added phase into view
+  setTimeout(() => {
+    const allPhases = document.querySelectorAll('.phase');
+    const newest = allPhases[allPhases.length - 1];
+    if (newest) newest.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 50);
+}
+
 // ════════════════════════════════════════════════════════════════════════
 // State + wire-up
 // ════════════════════════════════════════════════════════════════════════
-const STATE = { simResult: null };
+const STATE = { simResult: null, next: null };
+
+// Hardcoded trades (no longer user-editable — these are the real trades on the books)
+const TRADES_TEXT = `2027: UTA → MEM        # Jaren Jackson Jr. trade (simplified — actually swap with CLE/MIN)
+2027: LAL → MEM top-4  # also from JJJ trade
+2028: BKN → HOU
+2029: PHI → BKN top-8`;
 
 function parseTeamList(text) {
   return text.split(/[,\s]+/).map(s => s.toUpperCase().trim()).filter(s => TEAM_MAP[s]);
@@ -716,10 +754,7 @@ function parseTeamList(text) {
 
 function startSimulation() {
   const noise = parseInt(document.getElementById('ctlNoise').value, 10);
-  const seedTxt = document.getElementById('ctlSeed').value.trim();
-  const seedNum = seedTxt ? hashSeed(seedTxt) : Math.floor(Math.random() * 2**32);
-  if (!seedTxt) document.getElementById('ctlSeed').value = `auto-${seedNum.toString(36)}`;
-  const tradesText = document.getElementById('ctlTrades').value;
+  const seedNum = Math.floor(Math.random() * 2**32);
 
   // Prior draft history
   const prev2 = parseTeamList(document.getElementById('ctlPrev2').value);
@@ -730,19 +765,17 @@ function startSimulation() {
     top5_1yrAgo: prev1,
   };
 
-  STATE.simResult = runFullSimulation(noise, seedNum, tradesText, priorHistory);
+  STATE.simResult = runFullSimulation(noise, seedNum, TRADES_TEXT, priorHistory);
+  STATE.next = { yearIdx: 0, phase: 1 };
 
-  const html = STATE.simResult.years.map((y, i) => renderYearBlock(y, i, STATE.simResult.years.length)).join('');
-  document.getElementById('yearBlocks').innerHTML = html;
+  document.getElementById('yearBlocks').innerHTML = '';
   document.getElementById('intro').style.display = 'none';
   document.getElementById('btnStart').style.display = 'none';
   document.getElementById('btnReset').style.display = '';
 
   if (STATE.simResult.tradeErrors.length) console.warn('Trade parser warnings:', STATE.simResult.tradeErrors);
-  
-  setTimeout(() => {
-    document.getElementById(`year-block-${YEARS_TO_SIM[0]}`).scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, 50);
+
+  appendNextPhase();
 }
 
 function resetSimulation() {
@@ -750,7 +783,8 @@ function resetSimulation() {
   document.getElementById('intro').style.display = '';
   document.getElementById('btnStart').style.display = '';
   document.getElementById('btnReset').style.display = 'none';
-  document.getElementById('ctlSeed').value = '';
+  STATE.simResult = null;
+  STATE.next = null;
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -761,24 +795,9 @@ document.getElementById('ctlNoise').addEventListener('input', e => {
 });
 
 document.addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-action]');
+  const btn = e.target.closest('[data-action="advance"]');
   if (!btn) return;
-  const action = btn.dataset.action;
-  if (action === 'reveal') {
-    const idx = parseInt(btn.dataset.yearIdx, 10);
-    const np  = parseInt(btn.dataset.nextPhase, 10);
-    const block = document.getElementById(`year-block-${YEARS_TO_SIM[idx]}`);
-    const phase = block.querySelector(`.phase-${np}`);
-    phase.classList.remove('locked');
-    setTimeout(() => phase.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
-  } else if (action === 'advance-year') {
-    const idx = parseInt(btn.dataset.idx, 10);
-    const next = document.getElementById(`year-block-${YEARS_TO_SIM[idx + 1]}`);
-    if (next) {
-      next.classList.remove('locked');
-      setTimeout(() => next.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
-    }
-  }
+  appendNextPhase();
 });
 </script>
 
