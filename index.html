@@ -117,6 +117,9 @@ body { font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif; backgr
 .recap-table table { width:100%; border-collapse:collapse; font-size:0.82rem; }
 .recap-table thead th { background:var(--surface); font-family:'JetBrains Mono',monospace; font-size:0.6rem; font-weight:500; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); padding:0.55rem 0.75rem; text-align:left; border-bottom:1px solid var(--border); }
 .recap-table thead th.r { text-align:right; }
+.recap-table thead th.sortable { cursor:pointer; user-select:none; transition:color .12s, background .12s; }
+.recap-table thead th.sortable:hover { color:var(--accent); background:var(--accent-dim); }
+.recap-table thead th .sort-arrow { color:var(--accent); font-family:'DM Sans',sans-serif; font-weight:700; }
 .recap-table tbody td { padding:0.42rem 0.75rem; border-bottom:1px solid var(--border); vertical-align:middle; }
 .recap-table tbody tr:last-child td { border-bottom:none; }
 .recap-table tbody tr:hover { background:rgba(59,130,246,0.03); }
@@ -726,31 +729,74 @@ function renderPhase3(yearData, idx, totalYears) {
   `;
 }
 
-function renderRecap(simResult) {
+function buildRecapData(simResult) {
+  // Flat structured array: one entry per team, with per-year pick + rank
   const years = simResult.years;
-  // Sort all teams alphabetically by abbreviation for predictable layout
-  const teams = BASELINE.map(t => t.abbr).sort();
-  const yearHeaders = years.map(y => `<th class="r">${y.year} Rank</th><th class="r">${y.year} Draft</th>`).join('');
+  return BASELINE.map(t => {
+    const yearData = years.map(y => {
+      const pick = y.finalBoard.find(p => p.originalAbbr === t.abbr);
+      const rank = y.overallRankMap[t.abbr] || null;
+      return { year: y.year, pick, rank };
+    });
+    return { abbr: t.abbr, name: t.name, yearData };
+  });
+}
 
-  const rows = teams.map(abbr => {
-    const teamObj = TEAM_MAP[abbr];
-    const cells = years.map(y => {
-      const pick = y.finalBoard.find(p => p.originalAbbr === abbr);
-      const rank = y.overallRankMap[abbr] || '—';
-      const rankCell = `<td class="cell-rank">#${rank}</td>`;
-      if (!pick) return `${rankCell}<td class="cell-pick">—</td>`;
-      let pickCls = 'cell-pick';
-      if (pick.pickNum <= 4) pickCls += ' lot-top4';
-      else if (pick.isLottery) pickCls += ' lot';
-      let extras = [];
-      if (pick.traded)     extras.push(`<span class="extra traded">→ ${pick.ownerAbbr}</span>`);
-      if (pick.kept)       extras.push(`<span class="extra kept">kept (top-${pick.protection})</span>`);
-      if (pick.restriction) extras.push(`<span class="extra restr">restricted from #${pick.restriction.originalPick}</span>`);
-      const html = `#${pick.pickNum}${extras.join('')}`;
-      return `${rankCell}<td class="${pickCls}">${html}</td>`;
-    }).join('');
-    return `<tr><td class="cell-team">${teamObj.name} <span class="abbr">${abbr}</span></td>${cells}</tr>`;
+function sortRecapData(data, sortCol, sortDir) {
+  const dirFactor = sortDir === 'asc' ? 1 : -1;
+  return [...data].sort((a, b) => {
+    if (sortCol === 'team') {
+      return dirFactor * a.name.localeCompare(b.name);
+    }
+    // sortCol is "rank-<idx>" or "pick-<idx>" where idx is the year index
+    const [type, idxStr] = sortCol.split('-');
+    const idx = parseInt(idxStr, 10);
+    let av, bv;
+    if (type === 'rank') {
+      av = a.yearData[idx].rank ?? 999;
+      bv = b.yearData[idx].rank ?? 999;
+    } else {  // 'pick'
+      av = a.yearData[idx].pick ? a.yearData[idx].pick.pickNum : 999;
+      bv = b.yearData[idx].pick ? b.yearData[idx].pick.pickNum : 999;
+    }
+    if (av !== bv) return dirFactor * (av - bv);
+    // Stable secondary tiebreak by team name so equal cells don't shuffle
+    return a.name.localeCompare(b.name);
+  });
+}
+
+function recapRowHtml(row) {
+  const cells = row.yearData.map(yd => {
+    const rankCell = `<td class="cell-rank">${yd.rank ? '#' + yd.rank : '—'}</td>`;
+    const pick = yd.pick;
+    if (!pick) return `${rankCell}<td class="cell-pick">—</td>`;
+    let pickCls = 'cell-pick';
+    if (pick.pickNum <= 4) pickCls += ' lot-top4';
+    else if (pick.isLottery) pickCls += ' lot';
+    let extras = [];
+    if (pick.traded)      extras.push(`<span class="extra traded">→ ${pick.ownerAbbr}</span>`);
+    if (pick.kept)        extras.push(`<span class="extra kept">kept (top-${pick.protection})</span>`);
+    if (pick.restriction) extras.push(`<span class="extra restr">restricted from #${pick.restriction.originalPick}</span>`);
+    const html = `#${pick.pickNum}${extras.join('')}`;
+    return `${rankCell}<td class="${pickCls}">${html}</td>`;
   }).join('');
+  return `<tr><td class="cell-team">${row.name} <span class="abbr">${row.abbr}</span></td>${cells}</tr>`;
+}
+
+function sortArrowFor(col) {
+  if (STATE.recap.sortCol !== col) return '';
+  return STATE.recap.sortDir === 'asc' ? ' ↑' : ' ↓';
+}
+
+function renderRecap(simResult) {
+  STATE.recapData = buildRecapData(simResult);
+  const years = simResult.years;
+  const yearHeaders = years.map((y, i) => `
+    <th class="sortable r" data-col="rank-${i}">${y.year} Rank<span class="sort-arrow">${sortArrowFor('rank-' + i)}</span></th>
+    <th class="sortable r" data-col="pick-${i}">${y.year} Draft<span class="sort-arrow">${sortArrowFor('pick-' + i)}</span></th>
+  `).join('');
+  const sorted = sortRecapData(STATE.recapData, STATE.recap.sortCol, STATE.recap.sortDir);
+  const rows = sorted.map(recapRowHtml).join('');
 
   return `
     <div class="year-block" id="recap-block">
@@ -762,20 +808,33 @@ function renderRecap(simResult) {
         <div class="phase-head">
           <span class="ph-num">RECAP</span>
           <h3>Each Team's Own Pick Across All 3 Drafts</h3>
-          <span class="sub">— rank = overall record rank that year (1 best, 30 worst); draft = where the team's originating pick landed</span>
+          <span class="sub">— rank = overall record rank that year (1 best, 30 worst); draft = where the team's originating pick landed · click headers to sort</span>
         </div>
         <div class="recap-table">
           <table>
             <thead><tr>
-              <th>Team</th>
+              <th class="sortable" data-col="team">Team<span class="sort-arrow">${sortArrowFor('team')}</span></th>
               ${yearHeaders}
             </tr></thead>
-            <tbody>${rows}</tbody>
+            <tbody id="recap-tbody">${rows}</tbody>
           </table>
         </div>
       </div>
     </div>
   `;
+}
+
+function refreshRecapBody() {
+  const sorted = sortRecapData(STATE.recapData, STATE.recap.sortCol, STATE.recap.sortDir);
+  document.getElementById('recap-tbody').innerHTML = sorted.map(recapRowHtml).join('');
+  // Update arrows
+  document.querySelectorAll('#recap-block th.sortable').forEach(th => {
+    const arrow = th.querySelector('.sort-arrow');
+    if (!arrow) return;
+    arrow.textContent = th.dataset.col === STATE.recap.sortCol
+      ? (STATE.recap.sortDir === 'asc' ? ' ↑' : ' ↓')
+      : '';
+  });
 }
 
 function appendNextPhase() {
@@ -840,7 +899,7 @@ function appendNextPhase() {
 // ════════════════════════════════════════════════════════════════════════
 // State + wire-up
 // ════════════════════════════════════════════════════════════════════════
-const STATE = { simResult: null, next: null };
+const STATE = { simResult: null, next: null, recap: { sortCol: 'team', sortDir: 'asc' } };
 
 // Hardcoded trades (no longer user-editable — these are the real trades on the books)
 const TRADES_TEXT = `2027: UTA → MEM        # Jaren Jackson Jr. trade (simplified — actually swap with CLE/MIN)
@@ -885,6 +944,7 @@ function resetSimulation() {
   document.getElementById('btnReset').style.display = 'none';
   STATE.simResult = null;
   STATE.next = null;
+  STATE.recap = { sortCol: 'team', sortDir: 'asc' };
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -895,6 +955,19 @@ document.getElementById('ctlNoise').addEventListener('input', e => {
 });
 
 document.addEventListener('click', (e) => {
+  // Recap header click — re-sort
+  const th = e.target.closest('#recap-block th.sortable');
+  if (th) {
+    const col = th.dataset.col;
+    if (STATE.recap.sortCol === col) {
+      STATE.recap.sortDir = STATE.recap.sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      STATE.recap.sortCol = col;
+      STATE.recap.sortDir = 'asc';
+    }
+    refreshRecapBody();
+    return;
+  }
   const btn = e.target.closest('[data-action="advance"]');
   if (!btn) return;
   appendNextPhase();
