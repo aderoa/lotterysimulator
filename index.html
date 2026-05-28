@@ -730,14 +730,15 @@ function renderRecap(simResult) {
   const years = simResult.years;
   // Sort all teams alphabetically by abbreviation for predictable layout
   const teams = BASELINE.map(t => t.abbr).sort();
-  const yearHeaders = years.map(y => `<th class="r">${y.year}</th><th class="r" style="font-size:0.55rem">Rec.Rank</th>`).join('');
+  const yearHeaders = years.map(y => `<th class="r">${y.year} Rank</th><th class="r">${y.year} Draft</th>`).join('');
 
   const rows = teams.map(abbr => {
     const teamObj = TEAM_MAP[abbr];
     const cells = years.map(y => {
       const pick = y.finalBoard.find(p => p.originalAbbr === abbr);
       const rank = y.overallRankMap[abbr] || '—';
-      if (!pick) return `<td class="cell-pick">—</td><td class="cell-rank">${rank}</td>`;
+      const rankCell = `<td class="cell-rank">#${rank}</td>`;
+      if (!pick) return `${rankCell}<td class="cell-pick">—</td>`;
       let pickCls = 'cell-pick';
       if (pick.pickNum <= 4) pickCls += ' lot-top4';
       else if (pick.isLottery) pickCls += ' lot';
@@ -746,7 +747,7 @@ function renderRecap(simResult) {
       if (pick.kept)       extras.push(`<span class="extra kept">kept (top-${pick.protection})</span>`);
       if (pick.restriction) extras.push(`<span class="extra restr">restricted from #${pick.restriction.originalPick}</span>`);
       const html = `#${pick.pickNum}${extras.join('')}`;
-      return `<td class="${pickCls}">${html}</td><td class="cell-rank">#${rank}</td>`;
+      return `${rankCell}<td class="${pickCls}">${html}</td>`;
     }).join('');
     return `<tr><td class="cell-team">${teamObj.name} <span class="abbr">${abbr}</span></td>${cells}</tr>`;
   }).join('');
@@ -761,7 +762,7 @@ function renderRecap(simResult) {
         <div class="phase-head">
           <span class="ph-num">RECAP</span>
           <h3>Each Team's Own Pick Across All 3 Drafts</h3>
-          <span class="sub">— pick numbers are where each team's <em>originating</em> pick landed; "Rec.Rank" = overall record rank that year (1 best, 30 worst)</span>
+          <span class="sub">— rank = overall record rank that year (1 best, 30 worst); draft = where the team's originating pick landed</span>
         </div>
         <div class="recap-table">
           <table>
