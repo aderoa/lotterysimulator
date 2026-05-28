@@ -170,16 +170,33 @@ body { font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif; backgr
   </div>
 
   <details class="trades-area">
-    <summary>Traded picks (optional) — applied uniformly to all 3 years</summary>
+    <summary>Prior Draft History — real top-5 results from before the sim starts</summary>
     <div class="body">
-      <p>One trade per line: <code>ORIG → OWNER [protection]</code></p>
-      <textarea id="ctlTrades">BKN → HOU
-PHI → BKN top-8
-LAC → OKC
-ATL → SAS top-1
-MIL → POR top-4</textarea>
+      <p>The new rules check the prior 2 drafts for #1 and top-5 restrictions. Pre-filled with the 2025 draft and 2026 lottery results so 2027's sim applies restrictions correctly.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.85rem;margin-top:0.5rem">
+        <div style="display:flex;flex-direction:column;gap:0.3rem">
+          <label style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);font-weight:600">2025 Top 5 (#1 → #5)</label>
+          <input type="text" id="ctlPrev2" value="DAL, SAS, PHI, CHA, UTA" style="width:100%;padding:0.5em 0.7em;border:1px solid var(--border);border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:0.8rem">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:0.3rem">
+          <label style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);font-weight:600">2026 Top 5 (#1 → #5)</label>
+          <input type="text" id="ctlPrev1" value="WAS, UTA, MEM, CHI, LAC" style="width:100%;padding:0.5em 0.7em;border:1px solid var(--border);border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:0.8rem">
+        </div>
+      </div>
+      <div class="help">First team in each list is treated as #1 of that draft. Clear both fields to skip prior history. The teams listed are the <em>originating</em> teams (where the pick came from), not the team that made the selection.</div>
+    </div>
+  </details>
+
+  <details class="trades-area" open>
+    <summary>Traded picks (optional) — supports year-specific trades</summary>
+    <div class="body">
+      <p>One trade per line: <code>[YYYY:] ORIG → OWNER [protection]</code>. With a year prefix, the trade only fires for that draft; without one, it applies to all 3 sim years.</p>
+      <textarea id="ctlTrades">2027: UTA → MEM        # Jaren Jackson Jr. trade (simplified — actually swap with CLE/MIN)
+2027: LAL → MEM top-4  # also from JJJ trade
+2028: BKN → HOU        # placeholder example
+2029: PHI → BKN top-8  # placeholder example</textarea>
       <div class="help">
-        Use 3-letter abbrevs. Protection: <code>top-N</code> or <code>unprotected</code>. New CBA rejects top-12 through top-15 protections.
+        Use 3-letter abbrevs. Protection: <code>top-N</code> or <code>unprotected</code>. New CBA rejects top-12 through top-15 protections. <code>#</code> starts a comment. <strong>Restriction follows the originating team</strong> — if UTA's pick is restricted out of top-5, MEM (the owner) gets the slid-down pick, not UTA.
       </div>
     </div>
   </details>
@@ -392,9 +409,20 @@ function applyRestrictions(picks, history) {
 function parseTrades(text) {
   const trades = [], errors = [];
   const lines = text.split('\n').map(s => s.trim()).filter(Boolean);
-  for (const line of lines) {
-    const m = line.match(/^([A-Z]{2,3})\s*(?:→|->|to)\s*([A-Z]{2,3})(?:\s+(.+))?$/i);
-    if (!m) { errors.push(`Couldn't parse: "${line}"`); continue; }
+  for (const rawLine of lines) {
+    // Strip optional comment after #
+    const line = rawLine.split('#')[0].trim();
+    if (!line) continue;
+    // Optional year prefix: "2027: ORIG → OWNER ..."
+    let year = null;
+    let body = line;
+    const yearMatch = line.match(/^(\d{4})\s*[:|]\s*(.+)$/);
+    if (yearMatch) {
+      year = parseInt(yearMatch[1], 10);
+      body = yearMatch[2];
+    }
+    const m = body.match(/^([A-Z]{2,3})\s*(?:→|->|to)\s*([A-Z]{2,3})(?:\s+(.+))?$/i);
+    if (!m) { errors.push(`Couldn't parse: "${rawLine}"`); continue; }
     const orig = m[1].toUpperCase();
     const owner = m[2].toUpperCase();
     if (!TEAM_MAP[orig]) { errors.push(`Unknown team: ${orig}`); continue; }
@@ -407,18 +435,18 @@ function parseTrades(text) {
         const pm = p.match(/^top[\s-]?(\d+)$/);
         if (pm) {
           const n = parseInt(pm[1], 10);
-          if (n >= 12 && n <= 15) { errors.push(`Rejected (illegal top-12 to top-15 protection): "${line}"`); continue; }
+          if (n >= 12 && n <= 15) { errors.push(`Rejected (illegal top-12 to top-15 protection): "${rawLine}"`); continue; }
           prot = n;
         } else { errors.push(`Unknown protection: "${m[3]}"`); continue; }
       }
     }
-    trades.push({ orig, owner, protection: prot });
+    trades.push({ orig, owner, protection: prot, year });
   }
   return { trades, errors };
 }
 
-function resolveOwner(originalAbbr, pickNum, trades) {
-  const trade = trades.find(t => t.orig === originalAbbr);
+function resolveOwner(originalAbbr, pickNum, trades, currentYear) {
+  const trade = trades.find(t => t.orig === originalAbbr && (t.year == null || t.year === currentYear));
   if (!trade) return { ownerAbbr: originalAbbr, traded: false };
   if (trade.protection !== null && pickNum <= trade.protection) {
     return { ownerAbbr: originalAbbr, traded: false, kept: true, protection: trade.protection };
@@ -429,11 +457,18 @@ function resolveOwner(originalAbbr, pickNum, trades) {
 // ════════════════════════════════════════════════════════════════════════
 // Full 3-year simulation
 // ════════════════════════════════════════════════════════════════════════
-function runFullSimulation(noiseGames, seedNum, tradesText) {
+function runFullSimulation(noiseGames, seedNum, tradesText, priorHistory) {
   const rng = mulberry32(seedNum);
   const { trades, errors: tradeErrors } = parseTrades(tradesText);
   let currentRecords = BASELINE.map(t => ({ ...t }));
-  const history = { no1_lastYear: null, top5_2yrAgo: [], top5_1yrAgo: [] };
+  const history = {
+    no1_lastYear: priorHistory.no1_lastYear,
+    no1_year: priorHistory.no1_lastYear ? 2026 : null,
+    top5_2yrAgo: priorHistory.top5_2yrAgo,
+    top5_2yrAgo_year: priorHistory.top5_2yrAgo.length ? 2025 : null,
+    top5_1yrAgo: priorHistory.top5_1yrAgo,
+    top5_1yrAgo_year: priorHistory.top5_1yrAgo.length ? 2026 : null,
+  };
   const years = [];
 
   for (const year of YEARS_TO_SIM) {
@@ -458,24 +493,35 @@ function runFullSimulation(noiseGames, seedNum, tradesText) {
       })),
     ];
 
-    // Capture history snapshot BEFORE applying restrictions (so we can show it in banner)
-    const historySnapshot = { ...history, top5_2yrAgo: [...history.top5_2yrAgo], top5_1yrAgo: [...history.top5_1yrAgo] };
+    // Snapshot history BEFORE applying restrictions (for banner display)
+    const historySnapshot = {
+      no1_lastYear: history.no1_lastYear,
+      no1_year: history.no1_year,
+      top5_2yrAgo: [...history.top5_2yrAgo],
+      top5_2yrAgo_year: history.top5_2yrAgo_year,
+      top5_1yrAgo: [...history.top5_1yrAgo],
+      top5_1yrAgo_year: history.top5_1yrAgo_year,
+    };
 
     const { picks: restricted, fires } = applyRestrictions(fullPicks, history);
 
     const finalBoard = restricted.map((p, i) => {
       const pickNum = i + 1;
-      const own = resolveOwner(p.originalAbbr, pickNum, trades);
+      const own = resolveOwner(p.originalAbbr, pickNum, trades, year);
       const fire = fires.find(f => f.team === p.originalAbbr && f.finalPick === pickNum);
       return { ...p, pickNum, ...own, restriction: fire };
     });
 
     years.push({ year, standings, field, finalBoard, fires, historySnapshot });
 
+    // Roll history forward for next year
     const top5ThisYear = finalBoard.slice(0, 5).map(p => p.originalAbbr);
     history.top5_2yrAgo = history.top5_1yrAgo;
+    history.top5_2yrAgo_year = history.top5_1yrAgo_year;
     history.top5_1yrAgo = top5ThisYear;
+    history.top5_1yrAgo_year = year;
     history.no1_lastYear = finalBoard[0].originalAbbr;
+    history.no1_year = year;
   }
 
   return { years, tradeErrors };
@@ -544,7 +590,8 @@ function renderYearBlock(yearData, idx, totalYears) {
     const pntag = p.isLottery ? '<span class="pn-tag">Lottery</span>' : '';
     let notes = '';
     if (p.restriction) {
-      notes = `<span class="restrict">Restricted</span> — ${p.restriction.reason} (would have been #${p.restriction.originalPick})`;
+      const ownerNote = p.traded ? ` — ${p.ownerAbbr} bears the loss` : '';
+      notes = `<span class="restrict">Restricted</span> — ${p.restriction.reason} (originally #${p.restriction.originalPick})${ownerNote}`;
     } else if (p.traded) {
       notes = `Traded to ${p.ownerAbbr}` + (p.protection ? ` (was top-${p.protection})` : '');
     } else if (p.kept) {
@@ -563,20 +610,18 @@ function renderYearBlock(yearData, idx, totalYears) {
     </tr>`;
   }).join('');
 
-  // History banner (for years 2+)
+  // History banner (any year with carry-over restrictions, including 2027 if prior history given)
   let historyBanner = '';
-  if (idx > 0) {
-    const parts = [];
-    if (historySnapshot.no1_lastYear) {
-      parts.push(`<strong>${TEAM_MAP[historySnapshot.no1_lastYear].name}</strong> can't pick #1 (had it in ${YEARS_TO_SIM[idx - 1]})`);
-    }
-    const top5Restricted = historySnapshot.top5_2yrAgo.filter(t => historySnapshot.top5_1yrAgo.includes(t));
-    if (top5Restricted.length) {
-      parts.push(`<strong>${top5Restricted.map(t => TEAM_MAP[t].name).join(', ')}</strong> blocked from top-5 (had top-5 in both prior years)`);
-    }
-    if (parts.length) {
-      historyBanner = `<div class="history-banner"><strong>Carry-over restrictions:</strong> ${parts.join(' · ')}</div>`;
-    }
+  const parts = [];
+  if (historySnapshot.no1_lastYear) {
+    parts.push(`<strong>${TEAM_MAP[historySnapshot.no1_lastYear].name}</strong> can't pick #1 (had it in ${historySnapshot.no1_year})`);
+  }
+  const top5Restricted = historySnapshot.top5_2yrAgo.filter(t => historySnapshot.top5_1yrAgo.includes(t));
+  if (top5Restricted.length) {
+    parts.push(`<strong>${top5Restricted.map(t => TEAM_MAP[t].name).join(', ')}</strong> blocked from top-5 (top-5 in both ${historySnapshot.top5_2yrAgo_year} &amp; ${historySnapshot.top5_1yrAgo_year})`);
+  }
+  if (parts.length) {
+    historyBanner = `<div class="history-banner"><strong>Carry-over restrictions:</strong> ${parts.join(' · ')}</div>`;
   }
 
   const nextBtn = isLast 
@@ -665,6 +710,10 @@ function renderYearBlock(yearData, idx, totalYears) {
 // ════════════════════════════════════════════════════════════════════════
 const STATE = { simResult: null };
 
+function parseTeamList(text) {
+  return text.split(/[,\s]+/).map(s => s.toUpperCase().trim()).filter(s => TEAM_MAP[s]);
+}
+
 function startSimulation() {
   const noise = parseInt(document.getElementById('ctlNoise').value, 10);
   const seedTxt = document.getElementById('ctlSeed').value.trim();
@@ -672,7 +721,16 @@ function startSimulation() {
   if (!seedTxt) document.getElementById('ctlSeed').value = `auto-${seedNum.toString(36)}`;
   const tradesText = document.getElementById('ctlTrades').value;
 
-  STATE.simResult = runFullSimulation(noise, seedNum, tradesText);
+  // Prior draft history
+  const prev2 = parseTeamList(document.getElementById('ctlPrev2').value);
+  const prev1 = parseTeamList(document.getElementById('ctlPrev1').value);
+  const priorHistory = {
+    no1_lastYear: prev1[0] || null,
+    top5_2yrAgo: prev2,
+    top5_1yrAgo: prev1,
+  };
+
+  STATE.simResult = runFullSimulation(noise, seedNum, tradesText, priorHistory);
 
   const html = STATE.simResult.years.map((y, i) => renderYearBlock(y, i, STATE.simResult.years.length)).join('');
   document.getElementById('yearBlocks').innerHTML = html;
