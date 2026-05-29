@@ -309,6 +309,21 @@ const BASELINE = [
   { abbr:'UTA', name:'Utah Jazz',               conf:'W', w:22 },
 ];
 const TEAM_MAP = Object.fromEntries(BASELINE.map(t => [t.abbr, t]));
+// Short city/region names used in the recap to save horizontal space.
+// LAC/LAL get the "LA Clippers"/"LA Lakers" treatment since "Los Angeles"
+// alone would be ambiguous.
+const CITY_NAMES = {
+  ATL: 'Atlanta',       BOS: 'Boston',        BKN: 'Brooklyn',
+  CHA: 'Charlotte',     CHI: 'Chicago',       CLE: 'Cleveland',
+  DAL: 'Dallas',        DEN: 'Denver',        DET: 'Detroit',
+  GSW: 'Golden State',  HOU: 'Houston',       IND: 'Indiana',
+  LAC: 'LA Clippers',   LAL: 'LA Lakers',     MEM: 'Memphis',
+  MIA: 'Miami',         MIL: 'Milwaukee',     MIN: 'Minnesota',
+  NOP: 'New Orleans',   NYK: 'New York',      OKC: 'Oklahoma City',
+  ORL: 'Orlando',       PHI: 'Philadelphia',  PHX: 'Phoenix',
+  POR: 'Portland',      SAC: 'Sacramento',    SAS: 'San Antonio',
+  TOR: 'Toronto',       UTA: 'Utah',          WAS: 'Washington',
+};
 const YEARS_TO_SIM = [2027, 2028, 2029];
 
 // ════════════════════════════════════════════════════════════════════════
@@ -805,7 +820,7 @@ function recapRowHtml(row) {
     const html = `#${pick.pickNum}${extras.join('')}`;
     return `${rankCell}<td class="${pickCls}">${html}</td>`;
   }).join('');
-  return `<tr><td class="cell-team">${row.name} <span class="abbr">${row.abbr}</span></td>${cells}</tr>`;
+  return `<tr><td class="cell-team">${CITY_NAMES[row.abbr] || row.name} <span class="abbr">${row.abbr}</span></td>${cells}</tr>`;
 }
 
 function sortArrowFor(col) {
