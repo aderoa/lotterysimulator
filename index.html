@@ -817,7 +817,8 @@ function recapRowHtml(row) {
     let extras = [];
     if (pick.traded)      extras.push(`<span class="extra traded">→ ${pick.ownerAbbr}</span>`);
     if (pick.kept)        extras.push(`<span class="extra kept">kept (top-${pick.protection})</span>`);
-    if (pick.restriction) extras.push(`<span class="extra restr">restricted from #${pick.restriction.originalPick}</span>`);
+    // Restriction notes intentionally omitted from recap — they appear in
+    // each year's Phase 3 lottery results where they have full context.
     const html = `#${pick.pickNum}${extras.join('')}`;
     return `${rankCell}<td class="${pickCls}">${html}</td>`;
   }).join('');
