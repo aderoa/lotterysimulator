@@ -17,6 +17,16 @@
 body { font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; line-height:1.5; padding-bottom:4rem; }
 ::-webkit-scrollbar{height:6px;width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:3px}
 
+/* Embed mode — gated by body.embed-mode (set when ?embed=1 in URL).
+   Hides outer chrome (page header, intro card, notes section, footer copy)
+   and tightens layout so the simulator fits inside a Presto article iframe. */
+body.embed-mode { padding-bottom:1.5rem; background:var(--surface); }
+body.embed-mode .header,
+body.embed-mode .notes,
+body.embed-mode #embedFooter { display:none; }
+body.embed-mode .wrap { padding:1rem 1.25rem 0; max-width:none; }
+body.embed-mode .setup { margin-top:0; }
+
 .header { padding:1.75rem 2rem 0.5rem; max-width:1100px; margin:0 auto; }
 .header h1 { font-weight:800; font-size:1.7rem; letter-spacing:-0.02em; }
 .header h1 .tag { font-family:'JetBrains Mono',monospace; font-size:0.6rem; color:var(--accent); background:var(--accent-dim); padding:0.2em 0.6em; border-radius:4px; letter-spacing:0.04em; margin-left:0.5rem; vertical-align:middle; }
@@ -162,6 +172,11 @@ body { font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif; backgr
   .standings-grid { grid-template-columns:1fr; }
   .setup { flex-direction:column; align-items:stretch; }
   .ctrl input[type=range] { width:100%; }
+  .recap-table { overflow-x:auto; }
+  .recap-table table { min-width:600px; }
+  .board table th, .board table td { padding:0.4rem 0.3rem; font-size:0.78rem; }
+  .header h1 { font-size:1.3rem; }
+  .year-header h2 { font-size:1.15rem; }
 }
 </style>
 </head>
@@ -184,6 +199,7 @@ body { font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif; backgr
     </div>
     <button class="btn big" id="btnStart">▶ Start Simulation</button>
     <button class="btn secondary" id="btnReset" style="display:none">↻ New Simulation</button>
+    <button class="btn secondary" id="btnCopyEmbed" style="display:none">📋 Copy Embed Code</button>
   </div>
 
   <details class="trades-area">
@@ -972,6 +988,86 @@ document.addEventListener('click', (e) => {
   if (!btn) return;
   appendNextPhase();
 });
+
+// ─────────────────────────────────────────────────────────────
+// EMBED MODE
+// When the page is loaded with ?embed=1, hide chrome and post the
+// document height to the parent window so an embedding iframe can
+// auto-resize. The parent listens for messages of type
+// 'hoopsmatic-sim-resize' and sets iframe.height accordingly.
+// ─────────────────────────────────────────────────────────────
+(function () {
+  const params = new URLSearchParams(window.location.search);
+
+  // Show Copy Embed Code button on editor view (?ed=1) but not in the
+  // embed itself (?embed=1) — embeds shouldn't show editor controls.
+  if (params.has('ed') && !params.has('embed')) {
+    const btn = document.getElementById('btnCopyEmbed');
+    btn.style.display = 'inline-block';
+    btn.addEventListener('click', async () => {
+      // Hosted on GitHub Pages, not hoopsmatic.com — use the actual deployed URL
+      // rather than the current window.location (which may be ?ed=1 itself).
+      const embedURL = 'https://aderoa.github.io/lotterysimulator/?embed=1';
+      const snippet = `<iframe
+  src="${embedURL}"
+  width="100%"
+  height="600"
+  frameborder="0"
+  scrolling="no"
+  style="border:none;display:block;width:100%;max-width:900px;margin:1em auto;background:#fff"
+  loading="lazy">
+</iframe>
+<script>
+window.addEventListener('message', function(e) {
+  if (e.data && e.data.type === 'hoopsmatic-sim-resize') {
+    var f = document.querySelector('iframe[src*="lotterysimulator"]');
+    if (f) f.style.height = (e.data.height + 16) + 'px';
+  }
+});
+<\/script>`;
+      try {
+        await navigator.clipboard.writeText(snippet);
+        const orig = btn.textContent;
+        btn.textContent = '✓ Copied';
+        setTimeout(() => { btn.textContent = orig; }, 1800);
+      } catch (err) {
+        alert('Copy failed — please copy manually:\n\n' + snippet);
+      }
+    });
+  }
+
+  if (!params.has('embed')) return;
+  document.body.classList.add('embed-mode');
+
+  function postHeight() {
+    try {
+      const h = Math.max(
+        document.documentElement.scrollHeight,
+        document.body.scrollHeight
+      );
+      window.parent.postMessage({ type: 'hoopsmatic-sim-resize', height: h }, '*');
+    } catch (e) { /* cross-origin or no parent — silent */ }
+  }
+
+  // Fire on every layout change. ResizeObserver covers most cases (phase
+  // appends, recap re-sorts); window.resize handles user font-size changes
+  // and orientation flips; the initial calls handle first paint.
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(postHeight).observe(document.body);
+  }
+  window.addEventListener('resize', postHeight);
+  window.addEventListener('load', postHeight);
+  setTimeout(postHeight, 100);
+  setTimeout(postHeight, 500);
+
+  // Replace smooth scroll calls with no-ops inside iframe — scrolling the
+  // iframe's internal window doesn't move the parent page, and the auto-
+  // resize keeps everything visible anyway.
+  const origScrollIntoView = Element.prototype.scrollIntoView;
+  Element.prototype.scrollIntoView = function () { /* no-op in embed mode */ };
+  const origScrollTo = window.scrollTo;
+  window.scrollTo = function () { /* no-op in embed mode */ };
+})();
 </script>
 
 </body>
