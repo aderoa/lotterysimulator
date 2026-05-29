@@ -134,12 +134,12 @@ body.embed-mode.started .wrap::before { display:none; }
 /* Recap table */
 .recap-table { background:var(--surface2); border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-top:0.4rem; }
 .recap-table table { width:100%; border-collapse:collapse; font-size:0.82rem; }
-.recap-table thead th { background:var(--surface); font-family:'JetBrains Mono',monospace; font-size:0.6rem; font-weight:500; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); padding:0.55rem 0.75rem; text-align:left; border-bottom:1px solid var(--border); }
+.recap-table thead th { background:var(--surface); font-family:'JetBrains Mono',monospace; font-size:0.6rem; font-weight:500; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); padding:0.55rem 0.45rem; text-align:left; border-bottom:1px solid var(--border); line-height:1.25; }
 .recap-table thead th.r { text-align:right; }
 .recap-table thead th.sortable { cursor:pointer; user-select:none; transition:color .12s, background .12s; }
 .recap-table thead th.sortable:hover { color:var(--accent); background:var(--accent-dim); }
 .recap-table thead th .sort-arrow { color:var(--accent); font-family:'DM Sans',sans-serif; font-weight:700; }
-.recap-table tbody td { padding:0.42rem 0.75rem; border-bottom:1px solid var(--border); vertical-align:middle; }
+.recap-table tbody td { padding:0.42rem 0.45rem; border-bottom:1px solid var(--border); vertical-align:middle; }
 .recap-table tbody tr:last-child td { border-bottom:none; }
 .recap-table tbody tr:hover { background:rgba(59,130,246,0.03); }
 .recap-table .cell-team { font-weight:600; }
@@ -820,7 +820,7 @@ function recapRowHtml(row) {
     const html = `#${pick.pickNum}${extras.join('')}`;
     return `${rankCell}<td class="${pickCls}">${html}</td>`;
   }).join('');
-  return `<tr><td class="cell-team">${CITY_NAMES[row.abbr] || row.name} <span class="abbr">${row.abbr}</span></td>${cells}</tr>`;
+  return `<tr><td class="cell-team">${CITY_NAMES[row.abbr] || row.name}</td>${cells}</tr>`;
 }
 
 function sortArrowFor(col) {
@@ -832,8 +832,8 @@ function renderRecap(simResult) {
   STATE.recapData = buildRecapData(simResult);
   const years = simResult.years;
   const yearHeaders = years.map((y, i) => `
-    <th class="sortable r" data-col="rank-${i}">${y.year} Rank<span class="sort-arrow">${sortArrowFor('rank-' + i)}</span></th>
-    <th class="sortable r" data-col="pick-${i}">${y.year} Draft<span class="sort-arrow">${sortArrowFor('pick-' + i)}</span></th>
+    <th class="sortable r" data-col="rank-${i}">${y.year}<br>Rank<span class="sort-arrow">${sortArrowFor('rank-' + i)}</span></th>
+    <th class="sortable r" data-col="pick-${i}">${y.year}<br>Draft<span class="sort-arrow">${sortArrowFor('pick-' + i)}</span></th>
   `).join('');
   const sorted = sortRecapData(STATE.recapData, STATE.recap.sortCol, STATE.recap.sortDir);
   const rows = sorted.map(recapRowHtml).join('');
