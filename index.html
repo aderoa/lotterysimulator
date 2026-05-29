@@ -19,13 +19,22 @@ body { font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif; backgr
 
 /* Embed mode — gated by body.embed-mode (set when ?embed=1 in URL).
    Hides outer chrome (page header, intro card, notes section, footer copy)
-   and tightens layout so the simulator fits inside a Presto article iframe. */
-body.embed-mode { padding-bottom:1.5rem; background:var(--surface); }
+   and tightens layout so the simulator fits inside a Presto article iframe.
+   The body min-height fills the full iframe so the background is consistent
+   even when content is short (e.g., pre-start state, ~400px of controls). */
+body.embed-mode { padding-bottom:1.5rem; background:var(--bg); min-height:100vh; }
 body.embed-mode .header,
 body.embed-mode .notes,
 body.embed-mode #embedFooter { display:none; }
 body.embed-mode .wrap { padding:1rem 1.25rem 0; max-width:none; }
 body.embed-mode .setup { margin-top:0; }
+/* Soft hint at the top of embed mode so the controls don't look lost in a sea of whitespace */
+body.embed-mode .wrap::before {
+  content: '↓ Click Start Simulation to project the next 3 NBA Drafts';
+  display:block; text-align:center; font-size:0.72rem; color:var(--text-muted);
+  text-transform:uppercase; letter-spacing:0.08em; margin-bottom:0.6rem;
+}
+body.embed-mode.started .wrap::before { display:none; }
 
 .header { padding:1.75rem 2rem 0.5rem; max-width:1100px; margin:0 auto; }
 .header h1 { font-weight:800; font-size:1.7rem; letter-spacing:-0.02em; }
@@ -947,6 +956,7 @@ function startSimulation() {
   document.getElementById('intro').style.display = 'none';
   document.getElementById('btnStart').style.display = 'none';
   document.getElementById('btnReset').style.display = '';
+  document.body.classList.add('started');
 
   if (STATE.simResult.tradeErrors.length) console.warn('Trade parser warnings:', STATE.simResult.tradeErrors);
 
@@ -958,6 +968,7 @@ function resetSimulation() {
   document.getElementById('intro').style.display = '';
   document.getElementById('btnStart').style.display = '';
   document.getElementById('btnReset').style.display = 'none';
+  document.body.classList.remove('started');
   STATE.simResult = null;
   STATE.next = null;
   STATE.recap = { sortCol: 'team', sortDir: 'asc' };
@@ -1005,26 +1016,16 @@ document.addEventListener('click', (e) => {
     const btn = document.getElementById('btnCopyEmbed');
     btn.style.display = 'inline-block';
     btn.addEventListener('click', async () => {
-      // Hosted on GitHub Pages, not hoopsmatic.com — use the actual deployed URL
-      // rather than the current window.location (which may be ?ed=1 itself).
+      // Hosted on GitHub Pages. The iframe pattern below matches what Presto's
+      // HTML sanitizer accepts (verified against jsierrahoopshype/reporter-rankings):
+      //   - Only "safe" attributes (no deprecated frameborder/scrolling)
+      //   - Simple single-property `style="border:0;"`
+      //   - No trailing <script> (the sanitizer strips them; auto-resize won't work)
+      // Height is fixed at 3200px — enough to fit the full sim (controls + 3
+      // years × 3 phases + 3-year recap). Pre-start, there'll be ~2800px of
+      // whitespace; trade-off for not having a working postMessage listener.
       const embedURL = 'https://aderoa.github.io/lotterysimulator/?embed=1';
-      const snippet = `<iframe
-  src="${embedURL}"
-  width="100%"
-  height="600"
-  frameborder="0"
-  scrolling="no"
-  style="border:none;display:block;width:100%;max-width:900px;margin:1em auto;background:#fff"
-  loading="lazy">
-</iframe>
-<script>
-window.addEventListener('message', function(e) {
-  if (e.data && e.data.type === 'hoopsmatic-sim-resize') {
-    var f = document.querySelector('iframe[src*="lotterysimulator"]');
-    if (f) f.style.height = (e.data.height + 16) + 'px';
-  }
-});
-<\/script>`;
+      const snippet = `<iframe src="${embedURL}" width="100%" height="3200" style="border:0;" loading="lazy" title="NBA 3-2-1 Lottery Simulator" referrerpolicy="no-referrer-when-downgrade" allow="fullscreen"></iframe>`;
       try {
         await navigator.clipboard.writeText(snippet);
         const orig = btn.textContent;
