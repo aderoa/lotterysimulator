@@ -148,6 +148,7 @@ body.embed-mode.started .wrap::before { display:none; }
 .recap-table tbody tr:last-child td { border-bottom:none; }
 .recap-table tbody tr:hover { background:rgba(59,130,246,0.03); }
 .recap-table .cell-team { font-weight:600; font-size:0.8rem; }
+.recap-table .team-abbr { display:none; font-family:'JetBrains Mono',monospace; font-weight:600; letter-spacing:0.02em; }
 .recap-table .cell-team .abbr { font-family:'JetBrains Mono',monospace; color:var(--text-muted); font-weight:500; font-size:0.72rem; margin-left:0.3rem; }
 .recap-table .cell-pick { font-family:'JetBrains Mono',monospace; text-align:right; font-weight:500; font-size:0.78rem; }
 .recap-table .cell-pick.lot-top4 { color:var(--gold); font-weight:700; }
@@ -183,14 +184,26 @@ body.embed-mode.started .wrap::before { display:none; }
 .history-banner.fires { background:rgba(220,38,38,0.06); border-left-color:var(--red); margin:0.4rem 0 0.5rem; }
 
 @media (max-width: 760px) {
+  .wrap { padding:0 0.75rem; }
   .standings-grid { grid-template-columns:1fr; }
   .setup { flex-direction:column; align-items:stretch; }
   .ctrl input[type=range] { width:100%; }
-  .recap-table { overflow-x:auto; }
-  .recap-table table { min-width:600px; }
   .board table th, .board table td { padding:0.4rem 0.3rem; font-size:0.78rem; }
   .header h1 { font-size:1.3rem; }
   .year-header h2 { font-size:1.15rem; }
+
+  /* Recap on mobile: show ABBR not full name, fit all 7 columns without scroll */
+  .recap-table .team-full { display:none; }
+  .recap-table .team-abbr { display:inline; }
+  .recap-table table { font-size:0.74rem; }
+  .recap-table thead th:first-child,
+  .recap-table tbody td:first-child { width:3.2em; padding-left:0.4rem; }
+  .recap-table thead th { font-size:0.52rem; padding:0.4rem 0.15rem; letter-spacing:0.02em; }
+  .recap-table tbody td { padding:0.4rem 0.15rem; }
+  .recap-table .cell-pick { font-size:0.72rem; }
+  .recap-table .cell-rank { font-size:0.62rem; }
+  .recap-table .cell-pick .extra { font-size:0.55rem; }
+  .phase { padding:0.7rem 0.6rem; }
 }
 </style>
 </head>
@@ -826,7 +839,7 @@ function recapRowHtml(row) {
     const html = `#${pick.pickNum}${extras.join('')}`;
     return `${rankCell}<td class="${pickCls}">${html}</td>`;
   }).join('');
-  return `<tr><td class="cell-team">${CITY_NAMES[row.abbr] || row.name}</td>${cells}</tr>`;
+  return `<tr><td class="cell-team"><span class="team-full">${CITY_NAMES[row.abbr] || row.name}</span><span class="team-abbr">${row.abbr}</span></td>${cells}</tr>`;
 }
 
 function sortArrowFor(col) {
