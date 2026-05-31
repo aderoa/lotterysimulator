@@ -66,7 +66,7 @@ body.embed-mode.started .wrap::before { display:none; }
 .year-header h2 { font-size:1.4rem; font-weight:800; letter-spacing:-0.02em; }
 .year-header .step-tag { font-family:'JetBrains Mono',monospace; font-size:0.62rem; color:var(--text-muted); background:var(--surface2); padding:0.2em 0.6em; border-radius:4px; letter-spacing:0.06em; }
 
-.phase { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:1.1rem 1.25rem; margin-top:0.8rem; }
+.phase { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:1.1rem 1.25rem; margin-top:0.8rem; min-width:0; max-width:100%; overflow:hidden; }
 .phase-head { display:flex; align-items:baseline; gap:0.6rem; margin-bottom:0.85rem; flex-wrap:wrap; }
 .phase-head .ph-num { font-family:'JetBrains Mono',monospace; font-size:0.62rem; color:#fff; background:var(--accent); padding:0.25em 0.55em; border-radius:4px; letter-spacing:0.06em; font-weight:700; }
 .phase-head h3 { font-size:0.98rem; font-weight:700; }
@@ -132,13 +132,12 @@ body.embed-mode.started .wrap::before { display:none; }
 .rank-badge { font-family:'JetBrains Mono',monospace; font-size:0.6rem; color:var(--text-muted); background:var(--surface2); padding:0.12em 0.45em; border-radius:3px; margin-left:0.35rem; font-weight:600; letter-spacing:0.02em; }
 
 /* Recap table */
-.recap-table { background:var(--surface2); border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-top:0.4rem; }
-.recap-table table { width:100%; border-collapse:collapse; font-size:0.82rem; }
-/* Team column: shrink to the longest team name ("Oklahoma City"). The combo
-   of width:1% + white-space:nowrap is the canonical CSS trick to force a
-   <td> to its content's minimum width when the rest of the row can flex. */
+.recap-table { background:var(--surface2); border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-top:0.4rem; min-width:0; max-width:100%; }
+.recap-table table { width:100%; border-collapse:collapse; font-size:0.82rem; table-layout:fixed; }
+/* Team column: shrink to "Oklahoma City" width — width:1% in fixed layout is
+   treated as "give me min-content" and the rest distributes among data cols. */
 .recap-table thead th:first-child,
-.recap-table tbody td:first-child { width:1%; white-space:nowrap; }
+.recap-table tbody td:first-child { width:9em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .recap-table thead th { background:var(--surface); font-family:'JetBrains Mono',monospace; font-size:0.58rem; font-weight:500; text-transform:uppercase; letter-spacing:0.04em; color:var(--text-muted); padding:0.5rem 0.25rem; text-align:left; border-bottom:1px solid var(--border); line-height:1.25; }
 .recap-table thead th.r { text-align:right; }
 .recap-table thead th.sortable { cursor:pointer; user-select:none; transition:color .12s, background .12s; }
