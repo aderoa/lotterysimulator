@@ -134,6 +134,11 @@ body.embed-mode.started .wrap::before { display:none; }
 /* Recap table */
 .recap-table { background:var(--surface2); border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-top:0.4rem; }
 .recap-table table { width:100%; border-collapse:collapse; font-size:0.82rem; }
+/* Team column: shrink to the longest team name ("Oklahoma City"). The combo
+   of width:1% + white-space:nowrap is the canonical CSS trick to force a
+   <td> to its content's minimum width when the rest of the row can flex. */
+.recap-table thead th:first-child,
+.recap-table tbody td:first-child { width:1%; white-space:nowrap; }
 .recap-table thead th { background:var(--surface); font-family:'JetBrains Mono',monospace; font-size:0.58rem; font-weight:500; text-transform:uppercase; letter-spacing:0.04em; color:var(--text-muted); padding:0.5rem 0.25rem; text-align:left; border-bottom:1px solid var(--border); line-height:1.25; }
 .recap-table thead th.r { text-align:right; }
 .recap-table thead th.sortable { cursor:pointer; user-select:none; transition:color .12s, background .12s; }
